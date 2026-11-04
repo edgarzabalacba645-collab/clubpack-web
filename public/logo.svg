@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="100" fill="#F2F0E9"/>
+
+  <!-- Wordmark plano, bien bold, minimal -->
+  <text x="256" y="245" text-anchor="middle"
+        font-family="Arial Black, Helvetica, sans-serif" font-weight="900"
+        font-size="92" letter-spacing="-2" fill="#0A0A0C">CLUB</text>
+  <text x="256" y="335" text-anchor="middle"
+        font-family="Arial Black, Helvetica, sans-serif" font-weight="900"
+        font-size="92" letter-spacing="-2" fill="#0A0A0C">PACK</text>
+
+  <!-- Guión bajo tipo "play" -->
+  <rect x="196" y="358" width="120" height="14" fill="#FF3366"/>
+</svg>

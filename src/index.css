@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand palette — ClubPack */
+  --color-cream: #f2f0e9;
+  --color-cream-soft: #fdfdfb;
+  --color-ink: #0a0a0c;
+  --color-accent: #ff3366;
+  --color-accent-teal: #2ee6d6;
+  --color-accent-lime: #cbff3d;
+  --color-accent-violet: #7b2ff7;
+  --color-card: #ffffff;
+  --color-body: #44423c;
+  --color-muted: #6b6b66;
+  --color-muted-2: #8a867c;
+  --color-muted-3: #9a968d;
+  --color-border: rgb(10 10 12 / 0.12);
+  --color-border-soft: rgb(10 10 12 / 0.08);
+
+  /* Type */
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
+/* Estilos base propios van dentro de @layer base: así los utilities de
+   Tailwind (no-underline, etc.) siguen pudiendo pisarlos. CSS suelto
+   fuera de un @layer gana SIEMPRE contra cualquier regla en capa, sin
+   importar especificidad — por eso no va fuera de acá. */
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    color: var(--color-ink);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  a:hover {
+    color: var(--color-accent);
+  }
+
+  input::placeholder {
+    color: var(--color-muted-3);
+  }
+}
