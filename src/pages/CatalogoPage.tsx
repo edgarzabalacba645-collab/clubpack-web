@@ -393,6 +393,20 @@ export default function CatalogoPage() {
               : `Descubrí, escuchá y descargá los ${tracks.length} track${tracks.length === 1 ? "" : "s"} que compartió el grupo.`}
           </p>
         </div>
+
+        {/* Tagline manuscrito — solo modo oscuro, como en la referencia de diseño.
+            Oculto en mobile: a ese ancho se superpone con el título. */}
+        <p
+          className="hidden dark:sm:block absolute right-9 top-9 font-script text-3xl leading-[1.05] text-white/90 rotate-[-4deg] m-0 text-right"
+          style={{ textShadow: "0 2px 10px rgba(0,0,0,0.35)" }}
+          aria-hidden="true"
+        >
+          Juntos
+          <br />
+          hacemos crecer
+          <br />
+          el catálogo
+        </p>
       </div>
 
       {/* Pills de género */}

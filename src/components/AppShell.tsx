@@ -7,7 +7,8 @@ import BotonTema from "./BotonTema";
    (stroke="currentColor", 2px, redondeados) — así el sidebar nuevo no
    introduce un segundo lenguaje visual de iconografía. */
 
-function IconLogo() {
+/* Badge circular — se usa en modo claro, igual que antes. */
+function IconLogoBadge() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="12" fill="currentColor" />
@@ -20,6 +21,26 @@ function IconLogo() {
       />
       <rect x="5.3" y="13.3" width="2.6" height="4.4" rx="1.3" fill="var(--color-ink)" />
       <rect x="16.1" y="13.3" width="2.6" height="4.4" rx="1.3" fill="var(--color-ink)" />
+    </svg>
+  );
+}
+
+/* Auricular "pelado", sin fondo circular — así lo usa la referencia de
+   diseño en modo oscuro (ícono violeta suelto junto al wordmark, en vez
+   del badge). currentColor: el span que lo envuelve define el color
+   (text-accent, violeta en modo oscuro). */
+function IconLogoBare() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M5 14.5v-3a7 7 0 0 1 14 0v3"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <rect x="3.3" y="13" width="3.4" height="6" rx="1.7" fill="currentColor" />
+      <rect x="17.3" y="13" width="3.4" height="6" rx="1.7" fill="currentColor" />
     </svg>
   );
 }
@@ -167,8 +188,11 @@ export default function AppShell() {
           </button>
 
           <NavLink to="/catalogo" className="flex items-center gap-2.5 no-underline text-ink shrink-0">
-            <span className="w-8 h-8 rounded-full bg-ink text-card flex items-center justify-center shrink-0">
-              <IconLogo />
+            <span className="w-8 h-8 rounded-full bg-ink text-card flex items-center justify-center shrink-0 dark:hidden">
+              <IconLogoBadge />
+            </span>
+            <span className="hidden dark:flex items-center justify-center w-8 h-8 text-accent shrink-0">
+              <IconLogoBare />
             </span>
             <span className="hidden sm:flex flex-col leading-none">
               <span className="font-display font-extrabold text-[17px] tracking-[-0.3px]">ClubPack</span>

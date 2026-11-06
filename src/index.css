@@ -41,6 +41,9 @@
   /* Type */
   --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
+  /* Solo para el tagline manuscrito del banner en modo oscuro (ver
+     referencia de diseño) — no se usa en ningún otro lado. */
+  --font-script: "Caveat", cursive;
 }
 
 /* ------------------------------------------------------------------
