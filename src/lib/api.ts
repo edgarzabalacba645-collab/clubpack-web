@@ -71,6 +71,8 @@ export interface AnalisisTrack {
   fingerprint: string | null;
   advertencias: string[];
   duplicados_sospechosos: DuplicadoCandidato[];
+  /** true si el archivo trae carátula embebida (ID3 APIC) */
+  tiene_caratula_original: boolean;
 }
 
 export interface ConfirmarSubidaBody {
@@ -82,6 +84,8 @@ export interface ConfirmarSubidaBody {
   bpm?: number | null;
   key_armonica?: string | null;
   tags?: string[];
+  /** Solo importa si el análisis reportó tiene_caratula_original. Default true en el backend. */
+  usar_caratula_original?: boolean;
 }
 
 export interface EscaneoResultado {

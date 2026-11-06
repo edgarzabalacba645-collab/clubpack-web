@@ -30,6 +30,7 @@ export default function SubirTrackPage() {
   const [tags, setTags] = useState("");
 
   const [analisis, setAnalisis] = useState<AnalisisTrack | null>(null);
+  const [usarCaratulaOriginal, setUsarCaratulaOriginal] = useState(true);
   const [confirmoDuplicado, setConfirmoDuplicado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tituloSubido, setTituloSubido] = useState("");
@@ -66,6 +67,7 @@ export default function SubirTrackPage() {
     setBpmManual("");
     setTags("");
     setAnalisis(null);
+    setUsarCaratulaOriginal(true);
     setConfirmoDuplicado(false);
     setError(null);
     if (inputArchivoRef.current) inputArchivoRef.current.value = "";
@@ -76,6 +78,7 @@ export default function SubirTrackPage() {
     // Vuelve a editar sin perder lo ya tipeado, pero descarta el análisis
     // (el archivo en staging en el backend queda ahí hasta que venza, no pasa nada).
     setAnalisis(null);
+    setUsarCaratulaOriginal(true);
     setConfirmoDuplicado(false);
     setFase("formulario");
   }
@@ -131,6 +134,7 @@ export default function SubirTrackPage() {
         bpm: bpmManual ? Number(bpmManual) : null,
         key_armonica: keyArmonica || null,
         tags: tagsArr,
+        usar_caratula_original: usarCaratulaOriginal,
       });
 
       setTituloSubido(titulo.trim());
@@ -381,6 +385,36 @@ export default function SubirTrackPage() {
                   ⚠ {a}
                 </p>
               ))}
+            </div>
+          )}
+
+          {analisis.tiene_caratula_original && (
+            <div className="bg-cream rounded-xl p-4 flex flex-col gap-3">
+              <p className="text-sm font-semibold m-0">Este archivo trae una portada propia</p>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="caratula"
+                    checked={usarCaratulaOriginal}
+                    disabled={fase === "confirmando"}
+                    onChange={() => setUsarCaratulaOriginal(true)}
+                    className="w-4 h-4 accent-accent mt-0.5"
+                  />
+                  <span>Mantener la portada que trae el archivo</span>
+                </label>
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="caratula"
+                    checked={!usarCaratulaOriginal}
+                    disabled={fase === "confirmando"}
+                    onChange={() => setUsarCaratulaOriginal(false)}
+                    className="w-4 h-4 accent-accent mt-0.5"
+                  />
+                  <span>Usar la portada de ClubPack (por si la original es de otro servicio y no queda bien)</span>
+                </label>
+              </div>
             </div>
           )}
 

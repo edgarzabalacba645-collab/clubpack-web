@@ -33,6 +33,8 @@ interface FilaMasiva {
   advertencias: string[];
   duplicados: DuplicadoCandidato[];
   confirmoDuplicado: boolean;
+  tieneCaratulaOriginal: boolean;
+  usarCaratulaOriginal: boolean;
 }
 
 function tituloDesdeNombreArchivo(nombre: string): string {
@@ -91,6 +93,8 @@ export default function CargaMasiva() {
       advertencias: [],
       duplicados: [],
       confirmoDuplicado: false,
+      tieneCaratulaOriginal: false,
+      usarCaratulaOriginal: true,
     }));
     setFilas((prev) => [...prev, ...nuevas]);
     if (inputArchivosRef.current) inputArchivosRef.current.value = "";
@@ -126,6 +130,8 @@ export default function CargaMasiva() {
         duracionSeg: resultado.duracion_seg,
         advertencias: resultado.advertencias,
         duplicados: resultado.duplicados_sospechosos,
+        tieneCaratulaOriginal: resultado.tiene_caratula_original,
+        usarCaratulaOriginal: true,
         bpm:
           resultado.bpm_detectado != null
             ? resultado.bpm_detectado % 1 === 0
@@ -177,6 +183,7 @@ export default function CargaMasiva() {
         bpm: fila.bpm ? Number(fila.bpm) : null,
         key_armonica: fila.keyArmonica || null,
         tags: tagsArr,
+        usar_caratula_original: fila.usarCaratulaOriginal,
       });
       actualizarFila(fila.id, { estado: "listo" });
     } catch (e) {
@@ -475,6 +482,36 @@ function FilaMasivaCard({
               ⚠ {a}
             </p>
           ))}
+        </div>
+      )}
+
+      {fila.tieneCaratulaOriginal && (
+        <div className="bg-cream rounded-xl p-4 flex flex-col gap-3">
+          <p className="text-sm font-semibold m-0">Este archivo trae una portada propia</p>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="radio"
+                name={`caratula-${fila.id}`}
+                checked={fila.usarCaratulaOriginal}
+                disabled={fila.estado === "subiendo" || fila.estado === "listo"}
+                onChange={() => onCambiar({ usarCaratulaOriginal: true })}
+                className="w-4 h-4 accent-accent mt-0.5"
+              />
+              <span>Mantener la portada que trae el archivo</span>
+            </label>
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <input
+                type="radio"
+                name={`caratula-${fila.id}`}
+                checked={!fila.usarCaratulaOriginal}
+                disabled={fila.estado === "subiendo" || fila.estado === "listo"}
+                onChange={() => onCambiar({ usarCaratulaOriginal: false })}
+                className="w-4 h-4 accent-accent mt-0.5"
+              />
+              <span>Usar la portada de ClubPack (por si la original es de otro servicio y no queda bien)</span>
+            </label>
+          </div>
         </div>
       )}
 
