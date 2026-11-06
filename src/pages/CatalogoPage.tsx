@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import {
   abrirDescargaDirecta,
@@ -406,6 +406,22 @@ export default function CatalogoPage() {
           el catálogo
         </p>
       </div>
+
+      {/* Aviso de acceso gratuito limitado — solo para quien todavía no tiene
+          suscripción activa. Puede escuchar Cuarteto/Cachengue sin pagar
+          (ver policy "ver_tracks_con_acceso" en sql/006_*.sql); el resto del
+          catálogo y cualquier descarga quedan atrás de la suscripción. */}
+      {perfil && perfil.estado_suscripcion !== "activo" && perfil.rol !== "admin" && (
+        <p className="text-sm bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 m-0">
+          Por ahora podés escuchar gratis los temas de <strong>Cuarteto</strong> y{" "}
+          <strong>Cachengue</strong>. Para ver todo el catálogo y descargar, necesitás una
+          suscripción mensual —{" "}
+          <Link to="/suscripcion" className="underline font-semibold">
+            suscribite acá
+          </Link>
+          .
+        </p>
+      )}
 
       {/* Pills de género */}
       {generos.length > 0 && (
