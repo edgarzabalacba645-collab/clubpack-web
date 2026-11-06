@@ -40,7 +40,13 @@ interface FilaMasiva {
 
 function tituloDesdeNombreArchivo(nombre: string): string {
   const sinExtension = nombre.replace(/\.[^/.]+$/, "");
-  return sinExtension.replace(/_+/g, " ").trim();
+  let titulo = sinExtension.replace(/_+/g, " ").trim();
+  // Saca el número de pista inicial que traen los rips de CD completos
+  // ("01 - Nombre", "01. Nombre", "01 Nombre", "1) Nombre"), pero solo
+  // cuando hay separador claro después del número — si no, puede ser
+  // parte real del título (ej. "2step", "138 bpm") y se deja como está.
+  titulo = titulo.replace(/^\d{1,3}(?:[-._)]|\s)+/, "").trim();
+  return titulo;
 }
 
 function idFila(): string {
@@ -55,6 +61,7 @@ export default function CargaMasiva() {
   const [filas, setFilas] = useState<FilaMasiva[]>([]);
   const [analizandoTodos, setAnalizandoTodos] = useState(false);
   const [confirmandoTodos, setConfirmandoTodos] = useState(false);
+  const [artistaOriginalMasivo, setArtistaOriginalMasivo] = useState("");
   const [remixerMasivo, setRemixerMasivo] = useState("");
   const [generoMasivoId, setGeneroMasivoId] = useState("");
 
@@ -108,6 +115,13 @@ export default function CargaMasiva() {
 
   function quitarFila(id: string) {
     setFilas((prev) => prev.filter((f) => f.id !== id));
+  }
+
+  function aplicarArtistaOriginalATodos() {
+    if (!artistaOriginalMasivo.trim()) return;
+    setFilas((prev) =>
+      prev.map((f) => (f.estado === "listo" ? f : { ...f, artistaOriginal: artistaOriginalMasivo.trim() })),
+    );
   }
 
   function aplicarRemixerATodos() {
@@ -256,6 +270,25 @@ export default function CargaMasiva() {
 
         {filas.length > 0 && (
           <div className="flex flex-wrap items-end gap-3 pt-1">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-body">Artista original para todos</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={artistaOriginalMasivo}
+                  onChange={(e) => setArtistaOriginalMasivo(e.target.value)}
+                  placeholder="Para CDs completos"
+                  className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft w-40"
+                />
+                <button
+                  type="button"
+                  onClick={aplicarArtistaOriginalATodos}
+                  className="text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-ink appearance-none bg-transparent cursor-pointer"
+                >
+                  Aplicar a todos
+                </button>
+              </div>
+            </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-body">Remixer para todos</label>
               <div className="flex gap-2">
