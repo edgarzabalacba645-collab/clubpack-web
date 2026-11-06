@@ -1,22 +1,27 @@
 @import "tailwindcss";
 
 @theme {
-  /* Brand palette — ClubPack */
-  --color-cream: #f2f0e9;
-  --color-cream-soft: #fdfdfb;
-  --color-ink: #0a0a0c;
-  --color-accent: #ff3366;
-  --color-accent-teal: #2ee6d6;
-  --color-accent-lime: #cbff3d;
-  --color-accent-violet: #7b2ff7;
+  /* Brand palette — ClubPack (rediseño "DJ Mix Club": claro blanco/azul,
+     oscuro navy/violeta con acentos neón). A diferencia de la versión
+     anterior, --color-accent SÍ cambia entre modo claro y oscuro (azul
+     vs violeta) porque así lo marca la referencia de diseño — por eso
+     vive también dentro de :root.dark más abajo, no solo acá. */
+  --color-cream: #f4f6fb;
+  --color-cream-soft: #ffffff;
+  --color-ink: #12152c;
+  --color-accent: #2563eb;
+  --color-accent-teal: #0d9488;
+  --color-accent-lime: #65a30d;
+  --color-accent-violet: #7c3aed;
+  --color-accent-pink: #db2777;
   --color-card: #ffffff;
-  --color-body: #44423c;
-  --color-muted: #6b6b66;
-  --color-muted-2: #8a867c;
-  --color-muted-3: #9a968d;
-  --color-border: rgb(10 10 12 / 0.12);
-  --color-border-soft: rgb(10 10 12 / 0.08);
-  --color-overlay: rgb(10 10 12 / 0.4);
+  --color-body: #383c58;
+  --color-muted: #686d8a;
+  --color-muted-2: #8b8fa8;
+  --color-muted-3: #aaadc2;
+  --color-border: rgb(18 21 44 / 0.12);
+  --color-border-soft: rgb(18 21 44 / 0.07);
+  --color-overlay: rgb(10 10 20 / 0.45);
 
   /* "Ink" fijo: #0a0a0c en los dos modos, siempre. Se usa para texto que
      va SOBRE un fondo de color saturado (badges bg-accent-lime, por
@@ -31,24 +36,29 @@
 
 /* ------------------------------------------------------------------
    Modo oscuro: se activa agregando la clase "dark" al <html>
-   (ver lib/theme.tsx). Solo se re-declaran los tokens de SUPERFICIE
-   (fondo/texto/bordes) — los acentos de marca (rosa, teal, lima,
-   violeta) quedan igual en los dos modos, ya que son colores vivos
-   pensados para resaltar sobre cualquiera de los dos fondos.
-   `:root.dark` (especificidad 0,2,0) le gana a `:root` (0,1,0) sin
-   depender del orden en el que Tailwind inyecte las declaraciones.
+   (ver lib/theme.tsx). `:root.dark` (especificidad 0,2,0) le gana a
+   `:root` (0,1,0) sin depender del orden en el que Tailwind inyecte
+   las declaraciones. Acá, a diferencia de la versión anterior, el
+   acento principal TAMBIÉN cambia (azul → violeta neón) porque el
+   mockup de referencia usa paletas de marca distintas por modo, no
+   solo invierte fondo/texto.
    ------------------------------------------------------------------ */
 :root.dark {
-  --color-cream: #121116;
-  --color-cream-soft: #1a1920;
-  --color-card: #1c1b22;
-  --color-ink: #f2f0e9;
-  --color-body: #d9d7cf;
-  --color-muted: #a3a09a;
-  --color-muted-2: #7d7a74;
-  --color-muted-3: #5f5c58;
-  --color-border: rgb(255 255 255 / 0.14);
-  --color-border-soft: rgb(255 255 255 / 0.08);
+  --color-cream: #0e0f1f;
+  --color-cream-soft: #171830;
+  --color-card: #1b1c38;
+  --color-ink: #f4f3fb;
+  --color-accent: #a855f7;
+  --color-accent-teal: #2dd4bf;
+  --color-accent-lime: #a3e635;
+  --color-accent-violet: #c084fc;
+  --color-accent-pink: #f472b6;
+  --color-body: #d8d7ec;
+  --color-muted: #a6a4c6;
+  --color-muted-2: #85839f;
+  --color-muted-3: #605e7a;
+  --color-border: rgb(255 255 255 / 0.13);
+  --color-border-soft: rgb(255 255 255 / 0.07);
   --color-overlay: rgb(0 0 0 / 0.6);
 }
 

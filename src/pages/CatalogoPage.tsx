@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import {
   abrirDescargaDirecta,
@@ -9,7 +10,13 @@ import {
   obtenerUrlDescarga,
   subirPortada,
 } from "../lib/api";
-import { CAMELOT_KEYS, formatearBpm, formatearDuracion, mensajeErrorAmigable } from "../lib/format";
+import {
+  CAMELOT_KEYS,
+  formatearBpm,
+  formatearDuracion,
+  formatearFecha,
+  mensajeErrorAmigable,
+} from "../lib/format";
 import type { Genero, PlaylistInsert, PlaylistTrackInsert } from "../lib/types";
 import { useAuth } from "../lib/auth";
 import WaveformPlayer, { type WaveformPlayerHandle } from "../components/WaveformPlayer";
@@ -28,18 +35,36 @@ interface TrackFila {
   subido_por: string | null;
   tags: string[] | null;
   portada_url: string | null;
+  fecha_subida: string | null;
+  perfiles: { nombre_dj: string | null; email: string } | null;
+}
+
+/* Colores de acento que van rotando en los badges de género — puramente
+   visual, no hay una columna de color en `generos`. Clases completas y
+   literales (Tailwind v4 no genera clases armadas con template strings
+   en runtime, necesita verlas tal cual en el código fuente). */
+const BADGES_GENERO = [
+  "bg-accent/15 text-accent",
+  "bg-accent-teal/15 text-accent-teal",
+  "bg-accent-violet/15 text-accent-violet",
+  "bg-accent-lime/15 text-accent-lime",
+  "bg-accent-pink/15 text-accent-pink",
+];
+function badgeGenero(i: number) {
+  return BADGES_GENERO[i % BADGES_GENERO.length];
 }
 
 type EstadoPreview = "idle" | "cargando" | "sonando" | "pausado";
 
 export default function CatalogoPage() {
   const { session, perfil } = useAuth();
+  const [searchParams] = useSearchParams();
   const [tracks, setTracks] = useState<TrackFila[]>([]);
   const [generos, setGeneros] = useState<Genero[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [busqueda, setBusqueda] = useState("");
+  const [busqueda, setBusqueda] = useState(() => searchParams.get("q") ?? "");
   const [generoId, setGeneroId] = useState("");
   const [bpmMin, setBpmMin] = useState("");
   const [bpmMax, setBpmMax] = useState("");
@@ -88,6 +113,15 @@ export default function CatalogoPage() {
   }, []);
 
   useEffect(() => {
+    // Si el buscador del header manda a /catalogo?q=... estando ya en esta
+    // página, el componente no se remonta — sin esto el campo de búsqueda
+    // se quedaría con el valor viejo.
+    const q = searchParams.get("q") ?? "";
+    setBusqueda((prev) => (prev === q ? prev : q));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
     const handle = setTimeout(() => {
       cargarTracks();
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,7 +138,7 @@ export default function CatalogoPage() {
       let query = supabase
         .from("tracks")
         .select(
-          "id, titulo, artista_original, remixer, bpm, key_armonica, duracion_seg, genero_id, generos(nombre), subido_por, tags, portada_url",
+          "id, titulo, artista_original, remixer, bpm, key_armonica, duracion_seg, genero_id, generos(nombre), subido_por, tags, portada_url, fecha_subida, perfiles(nombre_dj, email)",
         )
         .eq("estado", "activo")
         .order("fecha_subida", { ascending: false });
@@ -322,14 +356,73 @@ export default function CatalogoPage() {
     [busqueda, generoId, bpmMin, bpmMax, key],
   );
 
+  const mostrarDescubrimiento = !hayFiltrosActivos && !cargando && tracks.length > 0;
+  const destacados = tracks.slice(0, 5);
+  const recientes = tracks.slice(0, 8);
+
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display font-extrabold text-3xl tracking-[-0.5px] m-0">Catálogo</h1>
-        <p className="text-muted text-sm mt-1">
-          {cargando ? "Cargando…" : `${tracks.length} track${tracks.length === 1 ? "" : "s"}`}
-        </p>
+    <div className="flex flex-col gap-8">
+      {/* Banner de bienvenida */}
+      <div className="relative overflow-hidden rounded-2xl px-6 sm:px-9 py-9 sm:py-11 bg-ink">
+        <img
+          src="/hero-light.jpg"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover opacity-50 dark:hidden"
+        />
+        <img
+          src="/hero-dark.jpg"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover opacity-60 hidden dark:block"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(100deg, rgba(10,10,20,0.88) 0%, rgba(10,10,20,0.6) 55%, rgba(10,10,20,0.25) 100%)",
+          }}
+        />
+        <div className="relative max-w-xl">
+          <h1 className="font-display font-extrabold text-[clamp(1.6rem,3.5vw,2.4rem)] leading-[1.08] tracking-[-0.5px] m-0 text-white">
+            El catálogo colaborativo de música para DJs
+          </h1>
+          <p className="mt-3 text-white/75 text-sm sm:text-base m-0">
+            {cargando
+              ? "Cargando…"
+              : `Descubrí, escuchá y descargá los ${tracks.length} track${tracks.length === 1 ? "" : "s"} que compartió el grupo.`}
+          </p>
+        </div>
       </div>
+
+      {/* Pills de género */}
+      {generos.length > 0 && (
+        <div className="flex flex-wrap gap-2 -mt-2">
+          <button
+            type="button"
+            onClick={() => setGeneroId("")}
+            className={`text-sm font-semibold px-4 py-2 rounded-full appearance-none border-none cursor-pointer transition-colors ${
+              generoId === "" ? "bg-ink text-cream" : "bg-card border border-border text-body hover:border-ink"
+            }`}
+          >
+            Todos
+          </button>
+          {generos.map((g, i) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => setGeneroId(g.id === generoId ? "" : g.id)}
+              className={`text-sm font-semibold px-4 py-2 rounded-full appearance-none cursor-pointer transition-colors ${
+                generoId === g.id
+                  ? "border-none bg-accent text-white"
+                  : `border-none ${badgeGenero(i)}`
+              }`}
+            >
+              {g.nombre}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="bg-card rounded-2xl p-5 border border-border-soft flex flex-wrap gap-4 items-end">
@@ -429,8 +522,113 @@ export default function CatalogoPage() {
       )}
       {error && <p className="text-sm text-accent font-medium">{error}</p>}
 
-      {/* Lista */}
-      <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
+      {/* Temas destacados — los últimos subidos, como tarjetas */}
+      {mostrarDescubrimiento && (
+        <div className="flex flex-col gap-3.5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display font-bold text-lg m-0">Temas destacados</h2>
+          </div>
+          <div className="flex gap-4 overflow-x-auto pb-1 -mx-1 px-1">
+            {destacados.map((t) => {
+              const esElSonando = trackSonando === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => reproducir(t)}
+                  className="group relative shrink-0 w-44 text-left appearance-none bg-transparent border-none cursor-pointer p-0"
+                >
+                  <div className="relative w-44 h-44 rounded-2xl overflow-hidden border border-border-soft">
+                    <Portada path={t.portada_url} alt="" className="w-full h-full object-cover" />
+                    <span className="absolute inset-0 bg-ink/0 group-hover:bg-ink/30 transition-colors" />
+                    <span className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-ink-fixed flex items-center justify-center shadow">
+                      {esElSonando && estadoPreview === "cargando" ? (
+                        <span className="text-xs">…</span>
+                      ) : esElSonando && estadoPreview === "sonando" ? (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                          <rect x="5" y="4" width="5" height="16" />
+                          <rect x="14" y="4" width="5" height="16" />
+                        </svg>
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M6 4 L20 12 L6 20 Z" />
+                        </svg>
+                      )}
+                    </span>
+                  </div>
+                  <div className="mt-2 px-0.5">
+                    <div className="font-semibold text-sm truncate">{t.titulo}</div>
+                    <div className="text-xs text-muted truncate">
+                      {t.remixer || t.perfiles?.nombre_dj || t.perfiles?.email || "—"}
+                      {t.bpm != null ? ` · ${formatearBpm(t.bpm)} bpm` : ""}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Últimos aportes de la comunidad */}
+      {mostrarDescubrimiento && (
+        <div className="flex flex-col gap-3.5">
+          <h2 className="font-display font-bold text-lg m-0">Últimos aportes de la comunidad</h2>
+          <div className="bg-card rounded-2xl border border-border-soft overflow-hidden overflow-x-auto">
+            <table className="w-full text-sm border-collapse min-w-[560px]">
+              <thead>
+                <tr className="text-left text-xs text-muted border-b border-border-soft">
+                  <th className="font-semibold px-5 py-3">Tema</th>
+                  <th className="font-semibold px-3 py-3 hidden sm:table-cell">Género</th>
+                  <th className="font-semibold px-3 py-3 text-right">BPM</th>
+                  <th className="font-semibold px-3 py-3 hidden md:table-cell">Subido por</th>
+                  <th className="font-semibold px-5 py-3 text-right hidden sm:table-cell">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recientes.map((t) => {
+                  const iGenero = generos.findIndex((g) => g.id === t.genero_id);
+                  return (
+                    <tr key={t.id} className="border-b border-border-soft last:border-b-0">
+                      <td className="px-5 py-3 min-w-0">
+                        <div className="font-semibold truncate max-w-[220px]">{t.titulo}</div>
+                        <div className="text-xs text-muted truncate max-w-[220px]">
+                          {t.remixer ?? t.artista_original ?? ""}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 hidden sm:table-cell">
+                        {t.generos?.nombre ? (
+                          <span
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-full ${badgeGenero(
+                              iGenero < 0 ? 0 : iGenero,
+                            )}`}
+                          >
+                            {t.generos.nombre}
+                          </span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-right text-muted">{formatearBpm(t.bpm)}</td>
+                      <td className="px-3 py-3 hidden md:table-cell text-muted truncate max-w-[140px]">
+                        {t.perfiles?.nombre_dj || t.perfiles?.email || "—"}
+                      </td>
+                      <td className="px-5 py-3 text-right text-muted hidden sm:table-cell">
+                        {formatearFecha(t.fecha_subida)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Lista completa */}
+      <div className="flex flex-col gap-3.5">
+        {mostrarDescubrimiento && <h2 className="font-display font-bold text-lg m-0">Catálogo completo</h2>}
+        <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
         {!cargando && tracks.length === 0 && (
           <div className="p-8 text-center text-muted text-sm">
             No hay tracks que coincidan con estos filtros.
@@ -447,7 +645,7 @@ export default function CatalogoPage() {
               key={t.id}
               className={`flex flex-col border-b border-border-soft last:border-b-0 ${seleccionado ? "bg-cream" : ""}`}
             >
-              <div className="flex items-center gap-4 px-5 py-3.5">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5">
                 <input
                   type="checkbox"
                   checked={seleccionado}
@@ -482,7 +680,7 @@ export default function CatalogoPage() {
                   className="hidden sm:block shrink-0 w-9 h-9 rounded-lg object-cover border border-border-soft"
                 />
 
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[150px] flex-1">
                   <div className="font-semibold text-sm truncate">{t.titulo}</div>
                   <div className="text-xs text-muted truncate">
                     {t.remixer ? `Remix: ${t.remixer}` : ""}
@@ -584,6 +782,7 @@ export default function CatalogoPage() {
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Barra de selección */}
