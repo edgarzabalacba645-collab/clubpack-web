@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Por defecto, en Tailwind v4 la variante `dark:` sigue la preferencia del
+   sistema operativo (prefers-color-scheme), no la clase `.dark` que el botón
+   de tema agrega a mano en <html> (ver lib/theme.tsx). Sin esta línea,
+   cualquier clase `dark:...` queda desconectada del toggle de la app — por
+   ejemplo, el banner del Catálogo mostraba siempre la misma foto sin
+   importar el tema elegido, porque dependía del modo del celular/navegador
+   en vez del botón. Esto hace que `dark:` seguido siempre a `.dark`. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   /* Brand palette — ClubPack (rediseño "DJ Mix Club": claro blanco/azul,
      oscuro navy/violeta con acentos neón). A diferencia de la versión
