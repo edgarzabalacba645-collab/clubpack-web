@@ -65,6 +65,8 @@ interface CargaMasivaContextValue {
   agregarArchivos: (lista: FileList | null) => void;
   actualizarFila: (id: string, cambios: Partial<FilaMasiva>) => void;
   quitarFila: (id: string) => void;
+  limpiarTodo: () => void;
+  limpiarSubidos: () => void;
   aplicarArtistaOriginalATodos: () => void;
   aplicarRemixerATodos: () => void;
   aplicarGeneroATodos: () => void;
@@ -146,6 +148,20 @@ export function CargaMasivaProvider({ children }: { children: ReactNode }) {
 
   function quitarFila(id: string) {
     setFilas((prev) => prev.filter((f) => f.id !== id));
+  }
+
+  // Vacía toda la cola — el botón "Limpiar todo" en CargaMasiva.tsx pide
+  // confirmación antes de llamar a esto si hay filas sin subir todavía.
+  function limpiarTodo() {
+    setFilas([]);
+  }
+
+  // Sólo saca de la lista las filas que ya se subieron ("listo") — las
+  // que todavía están pendientes/en revisión/con error quedan intactas.
+  // Pensado para despejar la vista después de una tanda grande sin perder
+  // lo que falta terminar.
+  function limpiarSubidos() {
+    setFilas((prev) => prev.filter((f) => f.estado !== "listo"));
   }
 
   function aplicarArtistaOriginalATodos() {
@@ -277,6 +293,8 @@ export function CargaMasivaProvider({ children }: { children: ReactNode }) {
         agregarArchivos,
         actualizarFila,
         quitarFila,
+        limpiarTodo,
+        limpiarSubidos,
         aplicarArtistaOriginalATodos,
         aplicarRemixerATodos,
         aplicarGeneroATodos,

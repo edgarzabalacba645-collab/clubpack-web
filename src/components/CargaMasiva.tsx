@@ -18,6 +18,8 @@ export default function CargaMasiva() {
     agregarArchivos,
     actualizarFila,
     quitarFila,
+    limpiarTodo,
+    limpiarSubidos,
     aplicarArtistaOriginalATodos,
     aplicarRemixerATodos,
     aplicarGeneroATodos,
@@ -34,6 +36,14 @@ export default function CargaMasiva() {
     (f) => f.estado === "revision" && (f.duplicados.length === 0 || f.confirmoDuplicado),
   );
   const totalListo = filas.filter((f) => f.estado === "listo").length;
+
+  function handleLimpiarTodo() {
+    const hayAlgoSinSubir = filas.some((f) => f.estado !== "listo");
+    if (hayAlgoSinSubir && !window.confirm("Todavía hay tracks sin subir en la lista — ¿vaciarla igual?")) {
+      return;
+    }
+    limpiarTodo();
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -138,7 +148,7 @@ export default function CargaMasiva() {
         )}
 
         {filas.length > 0 && (
-          <div className="flex gap-3 pt-1">
+          <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
               type="button"
               onClick={analizarTodas}
@@ -156,8 +166,29 @@ export default function CargaMasiva() {
               {confirmandoTodos ? "Subiendo…" : "Confirmar todos los listos"}
             </button>
             {totalListo > 0 && (
-              <span className="text-sm text-muted self-center">{totalListo} ya subido{totalListo === 1 ? "" : "s"}</span>
+              <span className="text-sm text-muted">{totalListo} ya subido{totalListo === 1 ? "" : "s"}</span>
             )}
+
+            <div className="flex-1" />
+
+            {totalListo > 0 && (
+              <button
+                type="button"
+                onClick={limpiarSubidos}
+                disabled={analizandoTodos || confirmandoTodos}
+                className="text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-ink appearance-none bg-transparent cursor-pointer text-muted disabled:opacity-50"
+              >
+                Limpiar subidos
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleLimpiarTodo}
+              disabled={analizandoTodos || confirmandoTodos}
+              className="text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-accent hover:text-accent appearance-none bg-transparent cursor-pointer text-muted disabled:opacity-50"
+            >
+              Limpiar todo
+            </button>
           </div>
         )}
       </div>
