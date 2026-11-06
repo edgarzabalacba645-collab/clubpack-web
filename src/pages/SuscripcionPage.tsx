@@ -205,10 +205,22 @@ export default function SuscripcionPage() {
           {tieneDatosManuales && (
             <section className="bg-card rounded-2xl p-6 border border-border-soft flex flex-col gap-4">
               <h2 className="font-display font-bold text-lg m-0">O por transferencia</h2>
-              <div className="flex flex-col gap-2 text-sm">
-                {config.cbu_cvu && <Fila etiqueta="CBU/CVU" valor={config.cbu_cvu} />}
-                {config.alias_cbu && <Fila etiqueta="Alias" valor={config.alias_cbu} />}
-                {config.titular_cuenta && <Fila etiqueta="Titular" valor={config.titular_cuenta} />}
+              <div className="flex flex-wrap items-start gap-6">
+                <div className="flex flex-col gap-2 text-sm min-w-[200px]">
+                  {config.cbu_cvu && <Fila etiqueta="CBU/CVU" valor={config.cbu_cvu} />}
+                  {config.alias_cbu && <Fila etiqueta="Alias" valor={config.alias_cbu} />}
+                  {config.titular_cuenta && <Fila etiqueta="Titular" valor={config.titular_cuenta} />}
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <img
+                    src="/qr-uala.jpg"
+                    alt="QR para transferir con cualquier billetera o app del banco"
+                    className="w-36 h-36 rounded-xl border border-border-soft object-cover"
+                  />
+                  <span className="text-xs text-muted text-center max-w-[150px]">
+                    Escaneá desde cualquier billetera o app del banco
+                  </span>
+                </div>
               </div>
 
               {!avisoEnviado ? (
