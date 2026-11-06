@@ -1,156 +1,54 @@
-import { useEffect, useRef, useState } from "react";
-import { supabase } from "../lib/supabase";
-import {
-  ApiError,
-  analizarTrack,
-  confirmarSubida,
-  type AnalisisTrack,
-} from "../lib/api";
-import { CAMELOT_KEYS, formatearDuracion, mensajeErrorAmigable } from "../lib/format";
-import type { Genero } from "../lib/types";
-import { useAuth } from "../lib/auth";
+import { useEffect, useRef } from "react";
+import { CAMELOT_KEYS, formatearDuracion } from "../lib/format";
+import { useSubida } from "../lib/subida";
 import CargaMasiva from "../components/CargaMasiva";
 
-type Fase = "formulario" | "analizando" | "revision" | "confirmando" | "listo";
-type Modo = "individual" | "masivo";
-
 export default function SubirTrackPage() {
-  const { perfil } = useAuth();
-  const [modo, setModo] = useState<Modo>("individual");
-  const [fase, setFase] = useState<Fase>("formulario");
-  const [generos, setGeneros] = useState<Genero[]>([]);
-
-  const [archivo, setArchivo] = useState<File | null>(null);
-  const [titulo, setTitulo] = useState("");
-  const [artistaOriginal, setArtistaOriginal] = useState("");
-  const [remixer, setRemixer] = useState("");
-  const [generoId, setGeneroId] = useState("");
-  const [keyArmonica, setKeyArmonica] = useState("");
-  const [bpmManual, setBpmManual] = useState("");
-  const [tags, setTags] = useState("");
-
-  const [analisis, setAnalisis] = useState<AnalisisTrack | null>(null);
-  const [usarCaratulaOriginal, setUsarCaratulaOriginal] = useState(true);
-  const [confirmoDuplicado, setConfirmoDuplicado] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [tituloSubido, setTituloSubido] = useState("");
+  const {
+    modo,
+    setModo,
+    fase,
+    generos,
+    archivo,
+    setArchivo,
+    titulo,
+    setTitulo,
+    artistaOriginal,
+    setArtistaOriginal,
+    remixer,
+    setRemixer,
+    generoId,
+    setGeneroId,
+    keyArmonica,
+    setKeyArmonica,
+    bpmManual,
+    setBpmManual,
+    tags,
+    setTags,
+    analisis,
+    usarCaratulaOriginal,
+    setUsarCaratulaOriginal,
+    confirmoDuplicado,
+    setConfirmoDuplicado,
+    error,
+    tituloSubido,
+    reiniciarTodo,
+    volverAFormulario,
+    handleAnalizar,
+    handleConfirmar,
+  } = useSubida();
 
   const inputArchivoRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    // Prellenar el remixer con el nombre de DJ del perfil, si lo tiene.
-    if (perfil?.nombre_dj) setRemixer(perfil.nombre_dj);
-  }, [perfil?.nombre_dj]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from("generos")
-          .select("*")
-          .eq("activo", true)
-          .order("orden");
-        if (!error && data) setGeneros(data);
-      } catch {
-        // el selector de género simplemente queda vacío si esto falla
-      }
-    })();
-  }, []);
-
-  function reiniciarTodo() {
-    setArchivo(null);
-    setTitulo("");
-    setArtistaOriginal("");
-    setRemixer(perfil?.nombre_dj ?? "");
-    setGeneroId("");
-    setKeyArmonica("");
-    setBpmManual("");
-    setTags("");
-    setAnalisis(null);
-    setUsarCaratulaOriginal(true);
-    setConfirmoDuplicado(false);
-    setError(null);
-    if (inputArchivoRef.current) inputArchivoRef.current.value = "";
-    setFase("formulario");
-  }
-
-  function volverAFormulario() {
-    // Vuelve a editar sin perder lo ya tipeado, pero descarta el análisis
-    // (el archivo en staging en el backend queda ahí hasta que venza, no pasa nada).
-    setAnalisis(null);
-    setUsarCaratulaOriginal(true);
-    setConfirmoDuplicado(false);
-    setFase("formulario");
-  }
-
-  async function handleAnalizar() {
-    setError(null);
-    if (!archivo) {
-      setError("Elegí un archivo de audio primero.");
-      return;
+    // El <input type="file"> es un elemento del DOM de esta página, no
+    // del contexto (que sobrevive a la navegación) — si se reinicia todo
+    // (archivo === null) hay que limpiar también lo que el navegador
+    // muestra como "elegido" en el input nativo.
+    if (archivo === null && inputArchivoRef.current) {
+      inputArchivoRef.current.value = "";
     }
-    if (!titulo.trim()) {
-      setError("Poné un título para el track.");
-      return;
-    }
-
-    setFase("analizando");
-    try {
-      const resultado = await analizarTrack(archivo, titulo.trim(), remixer.trim());
-      setAnalisis(resultado);
-      if (resultado.bpm_detectado != null) {
-        setBpmManual(
-          resultado.bpm_detectado % 1 === 0
-            ? String(resultado.bpm_detectado)
-            : resultado.bpm_detectado.toFixed(1),
-        );
-      }
-      if (resultado.key_detectada) {
-        setKeyArmonica(resultado.key_detectada);
-      }
-      setFase("revision");
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
-      setFase("formulario");
-    }
-  }
-
-  async function handleConfirmar() {
-    if (!analisis) return;
-    setError(null);
-    setFase("confirmando");
-    try {
-      const tagsArr = tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
-
-      await confirmarSubida({
-        staging_id: analisis.staging_id,
-        titulo: titulo.trim(),
-        artista_original: artistaOriginal.trim() || null,
-        remixer: remixer.trim() || null,
-        genero_id: generoId || null,
-        bpm: bpmManual ? Number(bpmManual) : null,
-        key_armonica: keyArmonica || null,
-        tags: tagsArr,
-        usar_caratula_original: usarCaratulaOriginal,
-      });
-
-      setTituloSubido(titulo.trim());
-      setFase("listo");
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 404) {
-        // El staging venció (30 min) — hay que volver a analizar el archivo.
-        setError(`${e.message} Volvé a analizarlo.`);
-        setAnalisis(null);
-        setFase("formulario");
-      } else {
-        setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
-        setFase("revision");
-      }
-    }
-  }
+  }, [archivo]);
 
   const hayDuplicados = (analisis?.duplicados_sospechosos.length ?? 0) > 0;
   const puedeConfirmar = !hayDuplicados || confirmoDuplicado;
@@ -480,7 +378,13 @@ export default function SubirTrackPage() {
   );
 }
 
-function SelectorModo({ modo, onCambiar }: { modo: Modo; onCambiar: (m: Modo) => void }) {
+function SelectorModo({
+  modo,
+  onCambiar,
+}: {
+  modo: "individual" | "masivo";
+  onCambiar: (m: "individual" | "masivo") => void;
+}) {
   return (
     <div className="inline-flex self-start rounded-full border border-border bg-cream-soft p-1 gap-1">
       <button

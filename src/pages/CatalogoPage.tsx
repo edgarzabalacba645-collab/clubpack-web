@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import {
@@ -19,7 +19,7 @@ import {
 } from "../lib/format";
 import type { Genero, PlaylistInsert, PlaylistTrackInsert } from "../lib/types";
 import { useAuth } from "../lib/auth";
-import WaveformPlayer, { type WaveformPlayerHandle } from "../components/WaveformPlayer";
+import { usePlayer } from "../lib/player";
 import Portada from "../components/Portada";
 
 interface TrackFila {
@@ -54,10 +54,9 @@ function badgeGenero(i: number) {
   return BADGES_GENERO[i % BADGES_GENERO.length];
 }
 
-type EstadoPreview = "idle" | "cargando" | "sonando" | "pausado";
-
 export default function CatalogoPage() {
   const { session, perfil } = useAuth();
+  const player = usePlayer();
   const [searchParams] = useSearchParams();
   const [tracks, setTracks] = useState<TrackFila[]>([]);
   const [generos, setGeneros] = useState<Genero[]>([]);
@@ -71,9 +70,12 @@ export default function CatalogoPage() {
   const [key, setKey] = useState("");
 
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
-  const [trackSonando, setTrackSonando] = useState<string | null>(null);
-  const [urlSonando, setUrlSonando] = useState<string | null>(null);
-  const [estadoPreview, setEstadoPreview] = useState<EstadoPreview>("idle");
+  // Solo cubre el momentito de pedir la URL firmada antes de poder
+  // arrancar la reproducción en sí — una vez que arranca, el estado
+  // "de verdad" (sonando/pausado/cargando el audio) vive en el
+  // reproductor global (usePlayer), que sobrevive si uno se va a otra
+  // pantalla (ver src/lib/player.tsx).
+  const [cargandoPreviewId, setCargandoPreviewId] = useState<string | null>(null);
   const [descargando, setDescargando] = useState<string | null>(null);
   const [procesandoZip, setProcesandoZip] = useState(false);
   const [guardandoPlaylist, setGuardandoPlaylist] = useState(false);
@@ -94,8 +96,6 @@ export default function CatalogoPage() {
 
   const [confirmandoBorrarId, setConfirmandoBorrarId] = useState<string | null>(null);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
-
-  const waveformRef = useRef<WaveformPlayerHandle | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -188,23 +188,21 @@ export default function CatalogoPage() {
   }
 
   async function reproducir(track: TrackFila) {
-    if (trackSonando === track.id) {
+    if (player.trackActual?.id === track.id) {
       // ya está activo este track (sonando o en pausa) — solo togglear
-      waveformRef.current?.togglePlay();
+      player.togglePlay();
       return;
     }
 
     setAvisoAccion(null);
-    setEstadoPreview("cargando");
-    setTrackSonando(track.id);
-    setUrlSonando(null); // desmonta el waveform anterior mientras carga la URL del nuevo
+    setCargandoPreviewId(track.id);
     try {
       const { url } = await obtenerUrlDescarga(track.id, false);
-      setUrlSonando(url);
+      player.reproducir({ id: track.id, titulo: track.titulo, remixer: track.remixer, url });
     } catch (e) {
       setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo reproducir el preview.");
-      setEstadoPreview("idle");
-      setTrackSonando(null);
+    } finally {
+      setCargandoPreviewId(null);
     }
   }
 
@@ -544,7 +542,9 @@ export default function CatalogoPage() {
           </div>
           <div className="flex gap-4 overflow-x-auto pb-1 -mx-1 px-1">
             {destacados.map((t) => {
-              const esElSonando = trackSonando === t.id;
+              const esElSonando = player.trackActual?.id === t.id;
+              const mostrandoSpinner =
+                cargandoPreviewId === t.id || (esElSonando && player.estado === "cargando");
               return (
                 <button
                   key={t.id}
@@ -556,9 +556,9 @@ export default function CatalogoPage() {
                     <Portada path={t.portada_url} alt="" className="w-full h-full object-cover" />
                     <span className="absolute inset-0 bg-ink/0 group-hover:bg-ink/30 transition-colors" />
                     <span className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-ink-fixed flex items-center justify-center shadow">
-                      {esElSonando && estadoPreview === "cargando" ? (
+                      {mostrandoSpinner ? (
                         <span className="text-xs">…</span>
-                      ) : esElSonando && estadoPreview === "sonando" ? (
+                      ) : esElSonando && player.estado === "sonando" ? (
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                           <rect x="5" y="4" width="5" height="16" />
                           <rect x="14" y="4" width="5" height="16" />
@@ -651,7 +651,9 @@ export default function CatalogoPage() {
 
         {tracks.map((t) => {
           const seleccionado = seleccion.has(t.id);
-          const esElSonando = trackSonando === t.id;
+          const esElSonando = player.trackActual?.id === t.id;
+          const mostrandoSpinner =
+            cargandoPreviewId === t.id || (esElSonando && player.estado === "cargando");
           const puedeEditar = t.subido_por === session?.user.id || perfil?.rol === "admin";
           const esAdmin = perfil?.rol === "admin";
           return (
@@ -671,12 +673,12 @@ export default function CatalogoPage() {
                 <button
                   type="button"
                   onClick={() => reproducir(t)}
-                  aria-label={esElSonando && estadoPreview === "sonando" ? "Pausar" : "Reproducir preview"}
+                  aria-label={esElSonando && player.estado === "sonando" ? "Pausar" : "Reproducir preview"}
                   className="shrink-0 w-9 h-9 rounded-full bg-ink text-cream flex items-center justify-center appearance-none border-none cursor-pointer"
                 >
-                  {esElSonando && estadoPreview === "cargando" ? (
+                  {mostrandoSpinner ? (
                     <span className="text-xs">…</span>
-                  ) : esElSonando && estadoPreview === "sonando" ? (
+                  ) : esElSonando && player.estado === "sonando" ? (
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                       <rect x="5" y="4" width="5" height="16" />
                       <rect x="14" y="4" width="5" height="16" />
@@ -768,31 +770,6 @@ export default function CatalogoPage() {
                   </div>
                 )}
               </div>
-
-              {esElSonando && (
-                <div className="px-5 pb-3.5 -mt-1 pl-[4.75rem] pr-5">
-                  {urlSonando ? (
-                    <WaveformPlayer
-                      ref={waveformRef}
-                      url={urlSonando}
-                      onEstado={setEstadoPreview}
-                      onFinish={() => {
-                        setEstadoPreview("idle");
-                        setTrackSonando(null);
-                        setUrlSonando(null);
-                      }}
-                      onError={(mensaje) => {
-                        setAvisoAccion(mensaje);
-                        setEstadoPreview("idle");
-                        setTrackSonando(null);
-                        setUrlSonando(null);
-                      }}
-                    />
-                  ) : (
-                    <p className="text-xs text-muted m-0">Cargando preview…</p>
-                  )}
-                </div>
-              )}
             </div>
           );
         })}

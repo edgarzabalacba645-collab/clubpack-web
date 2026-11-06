@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { usePlayer } from "../lib/player";
 import BotonTema from "./BotonTema";
 
 /* Iconos de línea simple, consistentes con los que ya usa LoginPage.tsx
@@ -141,6 +142,76 @@ function IconClose() {
   );
 }
 
+function IconPlayMini() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M6 4 L20 12 L6 20 Z" />
+    </svg>
+  );
+}
+
+function IconPauseMini() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="5" y="4" width="5" height="16" />
+      <rect x="14" y="4" width="5" height="16" />
+    </svg>
+  );
+}
+
+/*
+ * Barra fija con el reproductor global (ver src/lib/player.tsx) — vive
+ * acá, adentro de AppShell, que no se desmonta al navegar entre
+ * pantallas protegidas, así que un tema sonando sigue sonando sin
+ * importar a qué pantalla se vaya después. Solo se dibuja algo cuando
+ * hay un track activo.
+ */
+function BarraReproductor() {
+  const { trackActual, estado, error, contenedorRef, togglePlay, cerrar } = usePlayer();
+  if (!trackActual) return null;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border-soft px-4 sm:px-6 py-2.5 flex items-center gap-3 sm:gap-4">
+      <button
+        type="button"
+        onClick={togglePlay}
+        aria-label={estado === "sonando" ? "Pausar" : "Reproducir"}
+        className="shrink-0 w-10 h-10 rounded-full bg-ink text-cream flex items-center justify-center appearance-none border-none cursor-pointer"
+      >
+        {estado === "cargando" ? (
+          <span className="text-xs">…</span>
+        ) : estado === "sonando" ? (
+          <IconPauseMini />
+        ) : (
+          <IconPlayMini />
+        )}
+      </button>
+
+      <div className="hidden sm:block w-40 shrink-0 min-w-0">
+        <div className="font-semibold text-sm truncate">{trackActual.titulo}</div>
+        {trackActual.remixer && <div className="text-xs text-muted truncate">Remix: {trackActual.remixer}</div>}
+      </div>
+
+      <div ref={contenedorRef} className="flex-1 min-w-0 cursor-pointer" />
+
+      {error && (
+        <p className="hidden lg:block text-xs text-accent m-0 max-w-[220px] truncate shrink-0" title={error}>
+          {error}
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={cerrar}
+        aria-label="Cerrar reproductor"
+        className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
+      >
+        <IconClose />
+      </button>
+    </div>
+  );
+}
+
 const navItems: { to: string; label: string; icon: ReactNode }[] = [
   { to: "/catalogo", label: "Catálogo", icon: <IconHome /> },
   { to: "/playlists", label: "Playlists", icon: <IconPlaylist /> },
@@ -161,6 +232,7 @@ function sidebarLinkClass({ isActive }: { isActive: boolean }) {
 
 export default function AppShell() {
   const { perfil, signOut } = useAuth();
+  const { trackActual } = usePlayer();
   const navigate = useNavigate();
   const [busqueda, setBusqueda] = useState("");
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
@@ -260,8 +332,8 @@ export default function AppShell() {
         {/* Sidebar */}
         <aside
           className={`fixed lg:sticky top-16 lg:top-16 left-0 z-20 w-64 h-[calc(100vh-4rem)] bg-card border-r border-border-soft flex flex-col gap-1 p-4 overflow-y-auto transition-transform duration-200 ${
-            sidebarAbierto ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-          }`}
+            trackActual ? "pb-20" : ""
+          } ${sidebarAbierto ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
         >
           <form onSubmit={buscar} className="md:hidden mb-2">
             <label className="relative block">
@@ -314,10 +386,14 @@ export default function AppShell() {
           </div>
         </aside>
 
-        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <main
+          className={`flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 ${trackActual ? "pb-24" : ""}`}
+        >
           <Outlet />
         </main>
       </div>
+
+      <BarraReproductor />
     </div>
   );
 }
