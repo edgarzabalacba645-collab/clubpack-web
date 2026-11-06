@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { formatearFecha, mensajeErrorAmigable, rotuloEstadoSuscripcion } from "../lib/format";
+import type { PerfilUpdate } from "../lib/types";
 
 interface TrackSubido {
   id: string;
@@ -18,7 +19,12 @@ interface DescargaFila {
 }
 
 export default function MiCuentaPage() {
-  const { session, perfil } = useAuth();
+  const { session, perfil, recargarPerfil } = useAuth();
+
+  const [editandoNombre, setEditandoNombre] = useState(false);
+  const [nombreDj, setNombreDj] = useState("");
+  const [guardandoNombre, setGuardandoNombre] = useState(false);
+  const [errorNombre, setErrorNombre] = useState<string | null>(null);
 
   const [misTracks, setMisTracks] = useState<TrackSubido[]>([]);
   const [cargandoTracks, setCargandoTracks] = useState(true);
@@ -71,19 +77,92 @@ export default function MiCuentaPage() {
   const estado = perfil?.estado_suscripcion;
   const suscripcionOk = estado === "activo" || perfil?.rol === "admin";
 
+  function empezarEdicionNombre() {
+    setNombreDj(perfil?.nombre_dj ?? "");
+    setErrorNombre(null);
+    setEditandoNombre(true);
+  }
+
+  async function guardarNombreDj(e: FormEvent) {
+    e.preventDefault();
+    if (!session) return;
+    const valor = nombreDj.trim();
+    if (!valor) {
+      setErrorNombre("Poné algún nombre.");
+      return;
+    }
+    setGuardandoNombre(true);
+    setErrorNombre(null);
+    try {
+      const cambios: PerfilUpdate = { nombre_dj: valor };
+      const { error } = await supabase.from("perfiles").update(cambios).eq("id", session.user.id);
+      if (error) throw error;
+      await recargarPerfil();
+      setEditandoNombre(false);
+    } catch (e) {
+      setErrorNombre(mensajeErrorAmigable(e));
+    } finally {
+      setGuardandoNombre(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="font-display font-extrabold text-3xl tracking-[-0.5px] m-0">Mi cuenta</h1>
 
       <div className="max-w-xl flex flex-col gap-6 w-full">
       <div className="bg-card rounded-2xl p-6 flex flex-col gap-3 border border-border-soft">
-        <Fila etiqueta="DJ" valor={perfil?.nombre_dj ?? "—"} />
+        {editandoNombre ? (
+          <form onSubmit={guardarNombreDj} className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-muted font-medium shrink-0">DJ</span>
+            <div className="flex items-center gap-2 flex-1 justify-end">
+              <input
+                autoFocus
+                value={nombreDj}
+                onChange={(e) => setNombreDj(e.target.value)}
+                placeholder="Tu nombre de DJ"
+                maxLength={40}
+                className="min-w-0 flex-1 px-2.5 py-1.5 rounded-lg border-[1.5px] border-border text-sm font-semibold bg-[color:var(--color-cream-soft)] focus:outline-2 focus:outline-accent focus:outline-offset-1"
+              />
+              <button
+                type="submit"
+                disabled={guardandoNombre}
+                className="text-xs font-semibold bg-ink text-cream px-3 py-1.5 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60 shrink-0"
+              >
+                {guardandoNombre ? "..." : "Guardar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditandoNombre(false)}
+                disabled={guardandoNombre}
+                className="text-xs font-semibold text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer shrink-0"
+              >
+                Cancelar
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <span className="text-muted font-medium">DJ</span>
+            <span className="flex items-center gap-2">
+              <span className="font-semibold">{perfil?.nombre_dj ?? "—"}</span>
+              <button
+                type="button"
+                onClick={empezarEdicionNombre}
+                className="text-xs font-semibold underline text-ink appearance-none bg-transparent border-none cursor-pointer"
+              >
+                Editar
+              </button>
+            </span>
+          </div>
+        )}
+        {errorNombre && <p className="text-xs text-accent font-medium m-0 text-right">{errorNombre}</p>}
         <Fila etiqueta="Email" valor={perfil?.email ?? "—"} />
         <div className="flex items-center justify-between gap-4 text-sm">
           <span className="text-muted font-medium">Suscripción</span>
           <span
             className={`font-semibold px-2.5 py-1 rounded-full text-xs ${
-              suscripcionOk ? "bg-accent-lime text-ink" : "bg-accent/10 text-accent"
+              suscripcionOk ? "bg-accent-lime text-ink-fixed" : "bg-accent/10 text-accent"
             }`}
           >
             {rotuloEstadoSuscripcion(estado)}

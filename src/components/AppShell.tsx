@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import BotonTema from "./BotonTema";
 
 const navLinkBase =
   "text-sm font-medium px-3 py-2 rounded-lg transition-colors no-underline";
@@ -31,6 +32,12 @@ export default function AppShell() {
           <NavLink to="/playlists" className={navLinkClass}>
             Playlists
           </NavLink>
+          <NavLink to="/chat" className={navLinkClass}>
+            Chat
+          </NavLink>
+          <NavLink to="/herramientas" className={navLinkClass}>
+            Herramientas DJ
+          </NavLink>
           <NavLink to="/cuenta" className={navLinkClass}>
             Mi cuenta
           </NavLink>
@@ -48,6 +55,7 @@ export default function AppShell() {
           <span className="text-sm text-muted hidden sm:inline">
             {perfil?.nombre_dj ?? perfil?.email}
           </span>
+          <BotonTema />
           <button
             type="button"
             onClick={() => void signOut()}

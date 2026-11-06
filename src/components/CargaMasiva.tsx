@@ -536,10 +536,10 @@ function FilaMasivaCard({
 function EstadoBadge({ estado }: { estado: EstadoFila }) {
   const estilos: Record<EstadoFila, string> = {
     pendiente: "bg-cream text-muted",
-    analizando: "bg-accent-teal/20 text-ink",
+    analizando: "bg-accent-teal/20 text-ink-fixed",
     revision: "bg-accent-violet/10 text-accent-violet",
-    subiendo: "bg-accent-teal/20 text-ink",
-    listo: "bg-accent-lime text-ink",
+    subiendo: "bg-accent-teal/20 text-ink-fixed",
+    listo: "bg-accent-lime text-ink-fixed",
     error: "bg-accent/10 text-accent",
   };
   const etiquetas: Record<EstadoFila, string> = {

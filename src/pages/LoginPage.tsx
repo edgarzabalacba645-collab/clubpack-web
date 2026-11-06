@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { useTheme } from "../lib/theme";
+import BotonTema from "../components/BotonTema";
 
 type Tab = "login" | "signup";
 
@@ -64,17 +66,20 @@ function Feature({
   icon,
   title,
   subtitle,
+  clara = false,
 }: {
   icon: React.ReactNode;
   title: string;
   subtitle: string;
+  /** true = sobre la foto del hero (texto siempre claro, en los dos modos) */
+  clara?: boolean;
 }) {
   return (
     <div className="flex items-start gap-3.5">
       {icon}
       <div>
-        <div className="font-bold text-[15px]">{title}</div>
-        <div className="text-sm text-muted mt-0.5">{subtitle}</div>
+        <div className={`font-bold text-[15px] ${clara ? "text-white" : ""}`}>{title}</div>
+        <div className={`text-sm mt-0.5 ${clara ? "text-white/70" : "text-muted"}`}>{subtitle}</div>
       </div>
     </div>
   );
@@ -82,6 +87,7 @@ function Feature({
 
 export default function LoginPage() {
   const { session, cargando, signIn, signUp } = useAuth();
+  const { tema } = useTheme();
   const [tab, setTab] = useState<Tab>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -132,26 +138,43 @@ export default function LoginPage() {
           <span>CLUB</span>
           <span>PACK</span>
         </div>
-        <div className="text-[13px] text-muted font-medium">
-          Catálogo privado · Solo DJs invitados
+        <div className="flex items-center gap-3">
+          <div className="text-[13px] text-muted font-medium">
+            Catálogo privado · Solo DJs invitados
+          </div>
+          <BotonTema />
         </div>
       </div>
 
       {/* Hero */}
-      <div className="max-w-[1240px] mx-auto px-6 pt-14 pb-16 flex flex-wrap gap-14">
-        {/* Left: pitch */}
-        <div className="flex-[999_1_480px] min-w-0 flex flex-col gap-7 pt-3">
-          <div className="inline-flex self-start items-center gap-2 px-3.5 py-1.5 rounded-full bg-ink text-cream text-[13px] font-semibold tracking-[0.2px]">
+      <div className="max-w-[1240px] mx-auto px-6 pt-10 pb-16">
+      <div className="relative overflow-hidden rounded-[28px] px-6 sm:px-10 py-14 flex flex-wrap gap-14">
+        <img
+          src={tema === "oscuro" ? "/hero-dark.jpg" : "/hero-light.jpg"}
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(100deg, rgba(10,10,12,0.90) 0%, rgba(10,10,12,0.72) 42%, rgba(10,10,12,0.38) 72%, rgba(10,10,12,0.18) 100%)",
+          }}
+        />
+        {/* Left: pitch — texto fijo claro: va siempre sobre la foto+velo de arriba, en los dos modos */}
+        <div className="relative flex-[999_1_480px] min-w-0 flex flex-col gap-7 pt-3">
+          <div className="inline-flex self-start items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent-lime text-ink-fixed text-[13px] font-semibold tracking-[0.2px]">
             Hecho en Argentina
           </div>
 
-          <h1 className="font-display font-extrabold text-[56px] leading-[1.04] tracking-[-1.5px] m-0">
+          <h1 className="font-display font-extrabold text-[56px] leading-[1.04] tracking-[-1.5px] m-0 text-white">
             Tu librería de remixes,
             <br />
             armada entre DJs.
           </h1>
 
-          <p className="max-w-[480px] text-lg leading-[1.55] text-body m-0">
+          <p className="max-w-[480px] text-lg leading-[1.55] text-white/80 m-0">
             Subí tus versiones, bajá las de tus amigos. Un catálogo privado de
             remixes y edits hechos acá, sin vueltas.
           </p>
@@ -161,22 +184,25 @@ export default function LoginPage() {
               icon={<IconCatalogo />}
               title="Catálogo colaborativo"
               subtitle="Cada DJ sube sus propias versiones — todo el grupo accede a todo."
+              clara
             />
             <Feature
               icon={<IconCheck />}
               title="100% remixes argentinos"
               subtitle="Solo versiones hechas acá — nada de bajar de cualquier lado."
+              clara
             />
             <Feature
               icon={<IconMp3 />}
               title="Siempre en MP3 320"
               subtitle="Subís cualquier formato, se convierte solo. Catálogo parejo."
+              clara
             />
           </div>
         </div>
 
         {/* Right: auth card */}
-        <div className="flex-[1_1_400px] min-w-0 max-w-[440px]">
+        <div className="relative flex-[1_1_400px] min-w-0 max-w-[440px]">
           <div
             className="bg-card rounded-[20px] p-9"
             style={{
@@ -269,10 +295,11 @@ export default function LoginPage() {
             )}
           </div>
 
-          <p className="mt-4 mx-1 text-[12.5px] text-muted-2 text-center">
+          <p className="mt-4 mx-1 text-[12.5px] text-white/70 text-center">
             ¿Problemas para entrar? Escribile a un admin del grupo.
           </p>
         </div>
+      </div>
       </div>
 
       {/* Footer */}

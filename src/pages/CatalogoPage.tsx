@@ -3,14 +3,17 @@ import { supabase } from "../lib/supabase";
 import {
   abrirDescargaDirecta,
   ApiError,
+  borrarTrackAdmin,
   descargarBlob,
   descargarZip,
   obtenerUrlDescarga,
+  subirPortada,
 } from "../lib/api";
 import { CAMELOT_KEYS, formatearBpm, formatearDuracion, mensajeErrorAmigable } from "../lib/format";
 import type { Genero, PlaylistInsert, PlaylistTrackInsert } from "../lib/types";
 import { useAuth } from "../lib/auth";
 import WaveformPlayer, { type WaveformPlayerHandle } from "../components/WaveformPlayer";
+import Portada from "../components/Portada";
 
 interface TrackFila {
   id: string;
@@ -24,6 +27,7 @@ interface TrackFila {
   generos: { nombre: string } | null;
   subido_por: string | null;
   tags: string[] | null;
+  portada_url: string | null;
 }
 
 type EstadoPreview = "idle" | "cargando" | "sonando" | "pausado";
@@ -61,6 +65,10 @@ export default function CatalogoPage() {
   const [edBpm, setEdBpm] = useState("");
   const [edTags, setEdTags] = useState("");
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [subiendoPortada, setSubiendoPortada] = useState(false);
+
+  const [confirmandoBorrarId, setConfirmandoBorrarId] = useState<string | null>(null);
+  const [borrandoId, setBorrandoId] = useState<string | null>(null);
 
   const waveformRef = useRef<WaveformPlayerHandle | null>(null);
 
@@ -96,7 +104,7 @@ export default function CatalogoPage() {
       let query = supabase
         .from("tracks")
         .select(
-          "id, titulo, artista_original, remixer, bpm, key_armonica, duracion_seg, genero_id, generos(nombre), subido_por, tags",
+          "id, titulo, artista_original, remixer, bpm, key_armonica, duracion_seg, genero_id, generos(nombre), subido_por, tags, portada_url",
         )
         .eq("estado", "activo")
         .order("fecha_subida", { ascending: false });
@@ -277,6 +285,38 @@ export default function CatalogoPage() {
     }
   }
 
+  async function borrarTrack(track: TrackFila) {
+    setBorrandoId(track.id);
+    setAvisoAccion(null);
+    try {
+      await borrarTrackAdmin(track.id);
+      setConfirmandoBorrarId(null);
+      setTracks((prev) => prev.filter((t) => t.id !== track.id));
+      setAvisoAccion(`"${track.titulo}" se borró del catálogo.`);
+    } catch (e) {
+      setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo borrar el track.");
+    } finally {
+      setBorrandoId(null);
+    }
+  }
+
+  async function cambiarPortada(file: File) {
+    if (!editando) return;
+    setSubiendoPortada(true);
+    setAvisoAccion(null);
+    try {
+      const { path } = await subirPortada(editando.id, file);
+      setTracks((prev) =>
+        prev.map((t) => (t.id === editando.id ? { ...t, portada_url: path } : t)),
+      );
+      setEditando((prev) => (prev ? { ...prev, portada_url: path } : prev));
+    } catch (e) {
+      setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo subir la portada.");
+    } finally {
+      setSubiendoPortada(false);
+    }
+  }
+
   const hayFiltrosActivos = useMemo(
     () => !!(busqueda || generoId || bpmMin || bpmMax || key),
     [busqueda, generoId, bpmMin, bpmMax, key],
@@ -401,6 +441,7 @@ export default function CatalogoPage() {
           const seleccionado = seleccion.has(t.id);
           const esElSonando = trackSonando === t.id;
           const puedeEditar = t.subido_por === session?.user.id || perfil?.rol === "admin";
+          const esAdmin = perfil?.rol === "admin";
           return (
             <div
               key={t.id}
@@ -434,6 +475,12 @@ export default function CatalogoPage() {
                     </svg>
                   )}
                 </button>
+
+                <Portada
+                  path={t.portada_url}
+                  alt=""
+                  className="hidden sm:block shrink-0 w-9 h-9 rounded-lg object-cover border border-border-soft"
+                />
 
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold text-sm truncate">{t.titulo}</div>
@@ -476,6 +523,38 @@ export default function CatalogoPage() {
                 >
                   {descargando === t.id ? "…" : "Bajar"}
                 </button>
+
+                {esAdmin && confirmandoBorrarId !== t.id && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmandoBorrarId(t.id)}
+                    aria-label={`Borrar ${t.titulo}`}
+                    className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-accent hover:text-accent transition-colors appearance-none bg-transparent cursor-pointer"
+                  >
+                    Borrar
+                  </button>
+                )}
+                {esAdmin && confirmandoBorrarId === t.id && (
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    <span className="text-xs text-muted">¿Seguro?</span>
+                    <button
+                      type="button"
+                      onClick={() => borrarTrack(t)}
+                      disabled={borrandoId === t.id}
+                      className="text-xs font-semibold px-2.5 py-2 rounded-lg bg-accent text-white appearance-none border-none cursor-pointer disabled:opacity-60"
+                    >
+                      {borrandoId === t.id ? "…" : "Sí, borrar"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmandoBorrarId(null)}
+                      disabled={borrandoId === t.id}
+                      className="text-xs text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer disabled:opacity-60"
+                    >
+                      No
+                    </button>
+                  </div>
+                )}
               </div>
 
               {esElSonando && (
@@ -537,7 +616,7 @@ export default function CatalogoPage() {
       )}
 
       {mostrarFormPlaylist && (
-        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 px-4">
+        <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50 px-4">
           <div className="bg-card rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4">
             <h2 className="font-display font-bold text-lg m-0">Nueva playlist</h2>
             <input
@@ -570,9 +649,35 @@ export default function CatalogoPage() {
       )}
 
       {editando && (
-        <div className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 px-4">
+        <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50 px-4">
           <div className="bg-card rounded-2xl p-6 max-w-lg w-full flex flex-col gap-4">
             <h2 className="font-display font-bold text-lg m-0">Editar track</h2>
+
+            <div className="flex items-center gap-4">
+              <Portada
+                path={editando.portada_url}
+                alt=""
+                className="w-16 h-16 rounded-xl object-cover border border-border-soft shrink-0"
+              />
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-body">Portada</label>
+                <label className="text-xs font-semibold underline text-ink cursor-pointer self-start">
+                  {subiendoPortada ? "Subiendo…" : "Cambiar imagen"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={subiendoPortada}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void cambiarPortada(file);
+                      e.target.value = "";
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                <span className="text-xs text-muted">Si no subís una, queda la genérica de ClubPack.</span>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex flex-col gap-1 sm:col-span-2">

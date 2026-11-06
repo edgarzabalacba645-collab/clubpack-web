@@ -135,7 +135,7 @@ export default function SuscripcionPage() {
         <span className="text-sm text-muted font-medium">Tu suscripción</span>
         <span
           className={`font-semibold px-2.5 py-1 rounded-full text-xs ${
-            suscripcionOk ? "bg-accent-lime text-ink" : "bg-accent/10 text-accent"
+            suscripcionOk ? "bg-accent-lime text-ink-fixed" : "bg-accent/10 text-accent"
           }`}
         >
           {rotuloEstadoSuscripcion(estado)}

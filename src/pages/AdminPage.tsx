@@ -7,6 +7,7 @@ import {
   escanearDuplicados,
   listarDuplicadosPendientes,
   marcarDuplicado,
+  subirImagenHerramienta,
   type DuplicadoPendiente,
 } from "../lib/api";
 import { formatearBpm, formatearFecha, formatearMonto, mensajeErrorAmigable } from "../lib/format";
@@ -17,16 +18,20 @@ import type {
   EstadoTrack,
   Genero,
   GeneroInsert,
+  HerramientaDJ,
+  HerramientaDJInsert,
   Pago,
   Perfil,
   Rol,
 } from "../lib/types";
+import Portada from "../components/Portada";
 
-type Tab = "usuarios" | "generos" | "duplicados" | "top50" | "catalogo" | "suscripcion";
+type Tab = "usuarios" | "generos" | "herramientas" | "duplicados" | "top50" | "catalogo" | "suscripcion";
 
 const TABS: { id: Tab; etiqueta: string }[] = [
   { id: "usuarios", etiqueta: "Usuarios" },
   { id: "generos", etiqueta: "Géneros" },
+  { id: "herramientas", etiqueta: "Herramientas DJ" },
   { id: "duplicados", etiqueta: "Duplicados" },
   { id: "top50", etiqueta: "Top 50" },
   { id: "catalogo", etiqueta: "Catálogo completo" },
@@ -57,6 +62,7 @@ export default function AdminPage() {
 
       {tab === "usuarios" && <UsuariosTab />}
       {tab === "generos" && <GenerosTab />}
+      {tab === "herramientas" && <HerramientasTab />}
       {tab === "duplicados" && <DuplicadosTab />}
       {tab === "top50" && <Top50Tab />}
       {tab === "catalogo" && <CatalogoCompletoTab />}
@@ -340,6 +346,187 @@ function GenerosTab() {
               <button
                 type="button"
                 onClick={() => setConfirmandoBorrarId(g.id)}
+                className="text-xs font-semibold text-muted hover:text-accent appearance-none bg-transparent border-none cursor-pointer shrink-0"
+              >
+                Borrar
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// HERRAMIENTAS DJ
+// ============================================================
+
+function HerramientasTab() {
+  const { session } = useAuth();
+  const [herramientas, setHerramientas] = useState<HerramientaDJ[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [nombreNuevo, setNombreNuevo] = useState("");
+  const [descripcionNueva, setDescripcionNueva] = useState("");
+  const [linkNuevo, setLinkNuevo] = useState("");
+  const [imagenNueva, setImagenNueva] = useState<File | null>(null);
+  const [agregando, setAgregando] = useState(false);
+
+  const [ocupadoId, setOcupadoId] = useState<string | null>(null);
+  const [confirmandoBorrarId, setConfirmandoBorrarId] = useState<string | null>(null);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from("herramientas_dj")
+        .select("*")
+        .order("orden")
+        .order("fecha_creacion", { ascending: false });
+      if (error) throw error;
+      setHerramientas((data ?? []) as HerramientaDJ[]);
+    } catch (e) {
+      setError(mensajeErrorAmigable(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function agregar() {
+    if (!nombreNuevo.trim() || !linkNuevo.trim()) return;
+    setAgregando(true);
+    setError(null);
+    try {
+      let imagenPath: string | null = null;
+      if (imagenNueva) {
+        const { path } = await subirImagenHerramienta(imagenNueva);
+        imagenPath = path;
+      }
+      const nueva: HerramientaDJInsert = {
+        nombre: nombreNuevo.trim(),
+        link_descarga: linkNuevo.trim(),
+        descripcion: descripcionNueva.trim() || null,
+        imagen_path: imagenPath,
+        creado_por: session?.user.id ?? null,
+      };
+      const { data, error } = await supabase.from("herramientas_dj").insert(nueva).select().single();
+      if (error) throw error;
+      setHerramientas((prev) => [data as HerramientaDJ, ...prev]);
+      setNombreNuevo("");
+      setDescripcionNueva("");
+      setLinkNuevo("");
+      setImagenNueva(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setAgregando(false);
+    }
+  }
+
+  async function borrar(h: HerramientaDJ) {
+    setOcupadoId(h.id);
+    setError(null);
+    try {
+      const { error } = await supabase.from("herramientas_dj").delete().eq("id", h.id);
+      if (error) throw error;
+      setHerramientas((prev) => prev.filter((x) => x.id !== h.id));
+    } catch (e) {
+      setError(mensajeErrorAmigable(e));
+    } finally {
+      setOcupadoId(null);
+      setConfirmandoBorrarId(null);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-5 max-w-2xl">
+      <div className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-3">
+        <h2 className="font-display font-bold text-base m-0">Agregar herramienta</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input
+            type="text"
+            value={nombreNuevo}
+            onChange={(e) => setNombreNuevo(e.target.value)}
+            placeholder="Nombre, ej: Pack de samples"
+            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft sm:col-span-2"
+          />
+          <textarea
+            value={descripcionNueva}
+            onChange={(e) => setDescripcionNueva(e.target.value)}
+            placeholder="Descripción (opcional)"
+            rows={2}
+            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft sm:col-span-2 resize-none"
+          />
+          <input
+            type="url"
+            value={linkNuevo}
+            onChange={(e) => setLinkNuevo(e.target.value)}
+            placeholder="Link de descarga (https://…)"
+            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft sm:col-span-2"
+          />
+          <label className="flex items-center gap-2 text-sm text-muted cursor-pointer sm:col-span-2">
+            <span className="text-xs font-semibold underline text-ink shrink-0">
+              {imagenNueva ? imagenNueva.name : "Elegir imagen (opcional)"}
+            </span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setImagenNueva(e.target.files?.[0] ?? null)}
+              className="hidden"
+            />
+          </label>
+        </div>
+        <button
+          type="button"
+          onClick={agregar}
+          disabled={agregando || !nombreNuevo.trim() || !linkNuevo.trim()}
+          className="self-start text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
+        >
+          {agregando ? "Agregando…" : "+ Agregar"}
+        </button>
+      </div>
+
+      {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
+      {cargando && <p className="text-sm text-muted m-0">Cargando…</p>}
+
+      <div className="flex flex-col gap-2">
+        {herramientas.map((h) => (
+          <div key={h.id} className="bg-card rounded-xl border border-border-soft px-4 py-3 flex items-center gap-4">
+            <Portada path={h.imagen_path} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate">{h.nombre}</div>
+              {h.descripcion && <div className="text-xs text-muted truncate">{h.descripcion}</div>}
+            </div>
+
+            {confirmandoBorrarId === h.id ? (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => borrar(h)}
+                  disabled={ocupadoId === h.id}
+                  className="text-xs font-semibold text-accent appearance-none bg-transparent border-none cursor-pointer disabled:opacity-60"
+                >
+                  Confirmar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmandoBorrarId(null)}
+                  className="text-xs text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmandoBorrarId(h.id)}
                 className="text-xs font-semibold text-muted hover:text-accent appearance-none bg-transparent border-none cursor-pointer shrink-0"
               >
                 Borrar
@@ -654,7 +841,7 @@ function CatalogoCompletoTab() {
 
 function EstadoBadge({ estado }: { estado: EstadoTrack }) {
   const estilos: Record<EstadoTrack, string> = {
-    activo: "bg-accent-lime text-ink",
+    activo: "bg-accent-lime text-ink-fixed",
     duplicado_sospechoso: "bg-accent/10 text-accent",
     eliminado: "bg-border text-muted",
   };
@@ -914,7 +1101,7 @@ function SuscripcionAdminTab() {
                 type="button"
                 onClick={() => handleAprobar(p)}
                 disabled={ocupadoId === p.id}
-                className="text-sm font-semibold bg-accent-lime text-ink px-4 py-1.5 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
+                className="text-sm font-semibold bg-accent-lime text-ink-fixed px-4 py-1.5 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
               >
                 {ocupadoId === p.id ? "…" : "Aprobar"}
               </button>

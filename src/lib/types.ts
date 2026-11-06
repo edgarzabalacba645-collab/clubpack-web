@@ -41,6 +41,27 @@ export interface Track {
   fecha_subida: string;
   audio_fingerprint: string | null;
   estado: EstadoTrack;
+  portada_url: string | null;
+}
+
+export interface MensajeChat {
+  id: string;
+  usuario_id: string;
+  mensaje: string;
+  fecha: string;
+  // Solo viene cuando se pide con el join a perfiles (ver ChatPage).
+  perfiles?: { nombre_dj: string | null; email: string | null } | null;
+}
+
+export interface HerramientaDJ {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  imagen_path: string | null;
+  link_descarga: string;
+  creado_por: string | null;
+  orden: number;
+  fecha_creacion: string;
 }
 
 export interface Descarga {
@@ -149,3 +170,10 @@ export type ConfiguracionSuscripcionUpdate = Partial<
 >;
 
 export type PagoUpdate = Partial<Pick<Pago, "estado" | "confirmado_por">>;
+
+export type MensajeChatInsert = Pick<MensajeChat, "usuario_id" | "mensaje">;
+
+export type HerramientaDJInsert = Pick<HerramientaDJ, "nombre" | "link_descarga"> &
+  Partial<Omit<HerramientaDJ, "id" | "nombre" | "link_descarga" | "fecha_creacion">>;
+
+export type HerramientaDJUpdate = Partial<Omit<HerramientaDJ, "id" | "fecha_creacion">>;

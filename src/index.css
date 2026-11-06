@@ -16,10 +16,40 @@
   --color-muted-3: #9a968d;
   --color-border: rgb(10 10 12 / 0.12);
   --color-border-soft: rgb(10 10 12 / 0.08);
+  --color-overlay: rgb(10 10 12 / 0.4);
+
+  /* "Ink" fijo: #0a0a0c en los dos modos, siempre. Se usa para texto que
+     va SOBRE un fondo de color saturado (badges bg-accent-lime, por
+     ejemplo) — ahí necesita quedar oscuro sí o sí, aunque --color-ink
+     (el token normal de "texto principal") se invierta en modo oscuro. */
+  --color-ink-fixed: #0a0a0c;
 
   /* Type */
   --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
   --font-sans: "Inter", system-ui, sans-serif;
+}
+
+/* ------------------------------------------------------------------
+   Modo oscuro: se activa agregando la clase "dark" al <html>
+   (ver lib/theme.tsx). Solo se re-declaran los tokens de SUPERFICIE
+   (fondo/texto/bordes) — los acentos de marca (rosa, teal, lima,
+   violeta) quedan igual en los dos modos, ya que son colores vivos
+   pensados para resaltar sobre cualquiera de los dos fondos.
+   `:root.dark` (especificidad 0,2,0) le gana a `:root` (0,1,0) sin
+   depender del orden en el que Tailwind inyecte las declaraciones.
+   ------------------------------------------------------------------ */
+:root.dark {
+  --color-cream: #121116;
+  --color-cream-soft: #1a1920;
+  --color-card: #1c1b22;
+  --color-ink: #f2f0e9;
+  --color-body: #d9d7cf;
+  --color-muted: #a3a09a;
+  --color-muted-2: #7d7a74;
+  --color-muted-3: #5f5c58;
+  --color-border: rgb(255 255 255 / 0.14);
+  --color-border-soft: rgb(255 255 255 / 0.08);
+  --color-overlay: rgb(0 0 0 / 0.6);
 }
 
 /* Estilos base propios van dentro de @layer base: así los utilities de
@@ -40,6 +70,7 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   a {

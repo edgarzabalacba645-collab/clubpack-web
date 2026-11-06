@@ -163,7 +163,7 @@ export default function SubirTrackPage() {
   if (fase === "listo") {
     return (
       <div className="flex flex-col items-start gap-4 py-10">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-lime text-ink text-xs font-semibold">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent-lime text-ink-fixed text-xs font-semibold">
           Subido
         </div>
         <h1 className="font-display font-extrabold text-3xl tracking-[-0.5px] m-0">

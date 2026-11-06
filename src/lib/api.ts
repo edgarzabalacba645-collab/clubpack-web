@@ -173,6 +173,32 @@ export function borrarTrackAdmin(trackId: string) {
   return apiFetchJson<{ ok: boolean }>(`/tracks/${trackId}`, { method: "DELETE" });
 }
 
+// ---- Imágenes: portadas de track + herramientas DJ (R2, por eso pasan por la API) ----
+
+const cacheUrlImagen = new Map<string, { url: string; expira: number }>();
+
+export async function urlImagen(path: string): Promise<string> {
+  const cacheada = cacheUrlImagen.get(path);
+  // Un poco de margen (60s) para no usar una URL firmada justo al vencer.
+  if (cacheada && cacheada.expira > Date.now() + 60_000) return cacheada.url;
+
+  const { url } = await apiFetchJson<{ url: string }>(`/imagenes/url?path=${encodeURIComponent(path)}`);
+  cacheUrlImagen.set(path, { url, expira: Date.now() + 55 * 60 * 1000 });
+  return url;
+}
+
+export function subirPortada(trackId: string, file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetchJson<{ path: string }>(`/tracks/${trackId}/portada`, { method: "POST", body: form });
+}
+
+export function subirImagenHerramienta(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetchJson<{ path: string }>("/admin/herramientas/imagen", { method: "POST", body: form });
+}
+
 // ---- Admin: duplicados ----
 
 export function escanearDuplicados() {
