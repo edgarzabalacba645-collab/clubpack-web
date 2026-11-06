@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { ApiError, crearSuscripcionMP } from "../lib/api";
+import { ApiError, avisarPagoManual, crearSuscripcionMP } from "../lib/api";
 import {
   formatearFecha,
   formatearMonto,
@@ -108,6 +108,9 @@ export default function SuscripcionPage() {
       setAvisoEnviado(true);
       setComentarioManual("");
       void cargarPagos();
+      // Best-effort: si Telegram falla o no está configurado, el aviso ya
+      // quedó guardado en `pagos` igual — no bloqueamos al usuario por esto.
+      avisarPagoManual(fila.comentario ?? null).catch(() => {});
     } catch (e) {
       setErrorManual(mensajeErrorAmigable(e));
     } finally {

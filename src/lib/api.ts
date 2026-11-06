@@ -167,6 +167,17 @@ export function crearSuscripcionMP() {
   });
 }
 
+// Aviso a Telegram cuando alguien marca "ya transferí" — el insert en
+// `pagos` en sí va directo por Supabase (RLS); esto solo dispara la
+// notificación, así el admin no tiene que estar revisando el panel.
+export function avisarPagoManual(comentario: string | null) {
+  return apiFetchJson<{ ok: boolean }>("/suscripcion/aviso-manual", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ comentario }),
+  });
+}
+
 // ---- Admin: borrar track (necesita las credenciales de R2, por eso pasa por la API) ----
 
 export function borrarTrackAdmin(trackId: string) {
