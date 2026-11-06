@@ -391,29 +391,38 @@ export default function SubirTrackPage() {
           {analisis.tiene_caratula_original && (
             <div className="bg-cream rounded-xl p-4 flex flex-col gap-3">
               <p className="text-sm font-semibold m-0">Este archivo trae una portada propia</p>
-              <div className="flex flex-col gap-2">
-                <label className="flex items-start gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="caratula"
-                    checked={usarCaratulaOriginal}
-                    disabled={fase === "confirmando"}
-                    onChange={() => setUsarCaratulaOriginal(true)}
-                    className="w-4 h-4 accent-accent mt-0.5"
+              <div className="flex items-start gap-4">
+                {analisis.caratula_original_preview && (
+                  <img
+                    src={analisis.caratula_original_preview}
+                    alt="Portada embebida en el archivo"
+                    className="w-20 h-20 rounded-lg object-cover border border-border-soft shrink-0"
                   />
-                  <span>Mantener la portada que trae el archivo</span>
-                </label>
-                <label className="flex items-start gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="caratula"
-                    checked={!usarCaratulaOriginal}
-                    disabled={fase === "confirmando"}
-                    onChange={() => setUsarCaratulaOriginal(false)}
-                    className="w-4 h-4 accent-accent mt-0.5"
-                  />
-                  <span>Usar la portada de ClubPack (por si la original es de otro servicio y no queda bien)</span>
-                </label>
+                )}
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-start gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="caratula"
+                      checked={usarCaratulaOriginal}
+                      disabled={fase === "confirmando"}
+                      onChange={() => setUsarCaratulaOriginal(true)}
+                      className="w-4 h-4 accent-accent mt-0.5"
+                    />
+                    <span>Mantener la portada que trae el archivo</span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="caratula"
+                      checked={!usarCaratulaOriginal}
+                      disabled={fase === "confirmando"}
+                      onChange={() => setUsarCaratulaOriginal(false)}
+                      className="w-4 h-4 accent-accent mt-0.5"
+                    />
+                    <span>Usar la portada de ClubPack (por si la original es de otro servicio y no queda bien)</span>
+                  </label>
+                </div>
               </div>
             </div>
           )}

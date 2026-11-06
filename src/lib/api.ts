@@ -73,6 +73,8 @@ export interface AnalisisTrack {
   duplicados_sospechosos: DuplicadoCandidato[];
   /** true si el archivo trae carátula embebida (ID3 APIC) */
   tiene_caratula_original: boolean;
+  /** Data URI (ej. "data:image/jpeg;base64,...") de la carátula embebida, para mostrarla. null si no hay. */
+  caratula_original_preview: string | null;
 }
 
 export interface ConfirmarSubidaBody {

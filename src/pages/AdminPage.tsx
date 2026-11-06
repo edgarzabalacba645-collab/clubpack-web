@@ -45,13 +45,13 @@ export default function AdminPage() {
     <div className="flex flex-col gap-6">
       <h1 className="font-display font-extrabold text-3xl tracking-[-0.5px] m-0">Admin</h1>
 
-      <div className="flex items-center gap-1 flex-wrap bg-card border border-border-soft rounded-full p-1 self-start">
+      <div className="flex items-center gap-1 overflow-x-auto bg-card border border-border-soft rounded-full p-1 self-start max-w-full">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`text-sm font-semibold px-4 py-2 rounded-full appearance-none border-none cursor-pointer transition-colors ${
+            className={`shrink-0 whitespace-nowrap text-sm font-semibold px-4 py-2 rounded-full appearance-none border-none cursor-pointer transition-colors ${
               tab === t.id ? "bg-ink text-cream" : "text-muted hover:text-ink bg-transparent"
             }`}
           >
