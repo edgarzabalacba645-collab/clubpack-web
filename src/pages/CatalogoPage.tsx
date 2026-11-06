@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
+import type { AppShellContext } from "../components/AppShell";
 import { supabase } from "../lib/supabase";
 import {
   abrirDescargaDirecta,
@@ -57,6 +58,7 @@ function badgeGenero(i: number) {
 export default function CatalogoPage() {
   const { session, perfil } = useAuth();
   const player = usePlayer();
+  const { sidebarEscritorioAbierto } = useOutletContext<AppShellContext>();
   const [searchParams] = useSearchParams();
   const [tracks, setTracks] = useState<TrackFila[]>([]);
   const [generos, setGeneros] = useState<Genero[]>([]);
@@ -355,7 +357,10 @@ export default function CatalogoPage() {
   );
 
   const mostrarDescubrimiento = !hayFiltrosActivos && !cargando && tracks.length > 0;
-  const destacados = tracks.slice(0, 5);
+  // Con el sidebar de PC escondido el contenido tiene más ancho real
+  // disponible (ver AppShellContext) — se suman 2 portadas más para
+  // aprovecharlo en vez de dejar espacio vacío en la fila.
+  const destacados = tracks.slice(0, sidebarEscritorioAbierto ? 5 : 7);
   const recientes = tracks.slice(0, 8);
 
   return (
@@ -550,11 +555,11 @@ export default function CatalogoPage() {
       )}
       {error && <p className="text-sm text-accent font-medium">{error}</p>}
 
-      {/* Temas destacados — los últimos subidos, como tarjetas */}
+      {/* Recién subidos — los últimos subidos, como tarjetas */}
       {mostrarDescubrimiento && (
         <div className="flex flex-col gap-3.5">
           <div className="flex items-center justify-between">
-            <h2 className="font-display font-bold text-lg m-0">Temas destacados</h2>
+            <h2 className="font-display font-bold text-lg m-0">Recién subidos</h2>
           </div>
           <div className="flex gap-4 overflow-x-auto pb-1 -mx-1 px-1">
             {destacados.map((t) => {

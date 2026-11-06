@@ -4,6 +4,13 @@ import { useAuth } from "../lib/auth";
 import { usePlayer } from "../lib/player";
 import BotonTema from "./BotonTema";
 
+/** Lo que AppShell le pasa a sus páginas hijas via useOutletContext. */
+export interface AppShellContext {
+  /** Si el sidebar de PC está desplegado (ver AppShell) — con esto en
+   * false el contenido tiene más ancho real disponible. */
+  sidebarEscritorioAbierto: boolean;
+}
+
 /* Iconos de línea simple, consistentes con los que ya usa LoginPage.tsx
    (stroke="currentColor", 2px, redondeados) — así el sidebar nuevo no
    introduce un segundo lenguaje visual de iconografía. */
@@ -91,6 +98,16 @@ function IconChat() {
   );
 }
 
+function IconTrofeo() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+      <path d="M7 5.5H4a3 3 0 0 0 3 4.5M17 5.5h3a3 3 0 0 1-3 4.5" />
+      <path d="M12 14v3.5M9 20.5h6M9.5 17.5h5l.5 3h-6l.5-3Z" />
+    </svg>
+  );
+}
+
 function IconTools() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -138,17 +155,6 @@ function IconClose() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
       <path d="M6 6l12 12M18 6 6 18" />
-    </svg>
-  );
-}
-
-/* Flecha de la pestaña que abre/cierra el sidebar en la versión de PC —
-   apunta a la derecha ("abrir") por defecto; se rota 180° cuando el
-   sidebar está abierto, para que apunte a la izquierda ("cerrar"). */
-function IconChevron() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 5l7 7-7 7" />
     </svg>
   );
 }
@@ -225,6 +231,7 @@ function BarraReproductor() {
 
 const navItems: { to: string; label: string; icon: ReactNode }[] = [
   { to: "/catalogo", label: "Catálogo", icon: <IconHome /> },
+  { to: "/top50", label: "Top 50", icon: <IconTrofeo /> },
   { to: "/playlists", label: "Playlists", icon: <IconPlaylist /> },
   { to: "/chat", label: "Comunidad", icon: <IconChat /> },
   { to: "/herramientas", label: "Herramientas DJ", icon: <IconTools /> },
@@ -246,23 +253,22 @@ export default function AppShell() {
   const { trackActual } = usePlayer();
   const navigate = useNavigate();
   const [busqueda, setBusqueda] = useState("");
+  // Drawer de celular: lo abre/cierra el botón hamburguesa del header.
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
-  // Sidebar de la versión de PC (lg+): antes quedaba siempre fijo ocupando
-  // espacio; ahora arranca escondido a la izquierda y se despliega con la
-  // pestaña-flecha (ver más abajo), igual que el drawer de celular pero
-  // con su propio estado — así en pantallas grandes también se puede
-  // ganar todo el ancho para el contenido cuando no se lo necesita.
+  // Sidebar de la versión de PC (lg+): ya no es ni fijo-siempre-visible ni
+  // a click — ahora se muestra solo mientras el mouse está encima (acerca
+  // el mouse al borde izquierdo y se despliega, lo saca y se esconde),
+  // como un dock con auto-hide. El resto del contenido no queda fijo: se
+  // encoge un poco cuando el sidebar está visible y se expande cuando no
+  // (ver <aside> más abajo — sigue en el flujo normal del flex, nunca es
+  // "fixed", así que empuja/libera espacio de verdad en vez de flotar
+  // encima del contenido).
   const [sidebarEscritorioAbierto, setSidebarEscritorioAbierto] = useState(false);
-
-  function cerrarSidebars() {
-    setSidebarAbierto(false);
-    setSidebarEscritorioAbierto(false);
-  }
 
   function buscar(e: FormEvent) {
     e.preventDefault();
     navigate(`/catalogo${busqueda.trim() ? `?q=${encodeURIComponent(busqueda.trim())}` : ""}`);
-    cerrarSidebars();
+    setSidebarAbierto(false);
   }
 
   const inicial = (perfil?.nombre_dj || perfil?.email || "DJ").trim().charAt(0).toUpperCase();
@@ -341,27 +347,26 @@ export default function AppShell() {
       </header>
 
       <div className="flex">
-        {/* Overlay — en celular oscurece el fondo; en PC queda invisible
-            pero sigue capturando el click afuera para cerrar el drawer. */}
-        {(sidebarAbierto || sidebarEscritorioAbierto) && (
+        {/* Overlay solo de celular — oscurece el fondo y cierra el drawer
+            al tocar afuera. En PC no hace falta: el sidebar ahí no tapa
+            contenido (empuja, no flota encima) y se cierra solo al sacar
+            el mouse. */}
+        {sidebarAbierto && (
           <button
             type="button"
             aria-label="Cerrar menú"
-            onClick={cerrarSidebars}
-            className="fixed inset-0 bg-overlay lg:bg-transparent z-20 appearance-none border-none cursor-pointer"
+            onClick={() => setSidebarAbierto(false)}
+            className="fixed inset-0 bg-overlay z-20 lg:hidden appearance-none border-none cursor-pointer"
           />
         )}
 
-        {/* Sidebar — en celular lo maneja sidebarAbierto (botón hamburguesa
-            del header); en PC lo maneja sidebarEscritorioAbierto (pestaña
-            con flecha de al lado). Fixed en los dos casos: así, cuando
-            está escondido, el contenido aprovecha todo el ancho. */}
+        {/* Drawer de celular — tapa el contenido (fixed), lo abre/cierra
+            el botón hamburguesa del header. No existe en PC (lg:hidden):
+            ahí el sidebar de abajo hace ese trabajo de otra forma. */}
         <aside
-          className={`fixed top-16 left-0 z-20 w-64 h-[calc(100vh-4rem)] bg-card border-r border-border-soft flex flex-col gap-1 p-4 overflow-y-auto transition-transform duration-200 ${
+          className={`fixed lg:hidden top-16 left-0 z-20 w-64 h-[calc(100vh-4rem)] bg-card border-r border-border-soft flex flex-col gap-1 p-4 overflow-y-auto transition-transform duration-200 ${
             trackActual ? "pb-20" : ""
-          } ${sidebarAbierto ? "translate-x-0" : "-translate-x-full"} ${
-            sidebarEscritorioAbierto ? "lg:translate-x-0" : "lg:-translate-x-full"
-          }`}
+          } ${sidebarAbierto ? "translate-x-0" : "-translate-x-full"}`}
         >
           <form onSubmit={buscar} className="md:hidden mb-2">
             <label className="relative block">
@@ -384,7 +389,7 @@ export default function AppShell() {
               key={item.to}
               to={item.to}
               className={sidebarLinkClass}
-              onClick={cerrarSidebars}
+              onClick={() => setSidebarAbierto(false)}
             >
               {item.icon}
               {item.label}
@@ -392,7 +397,7 @@ export default function AppShell() {
           ))}
 
           {perfil?.rol === "admin" && (
-            <NavLink to="/admin" className={sidebarLinkClass} onClick={cerrarSidebars}>
+            <NavLink to="/admin" className={sidebarLinkClass} onClick={() => setSidebarAbierto(false)}>
               <IconShield />
               Admin
             </NavLink>
@@ -402,7 +407,7 @@ export default function AppShell() {
 
           <NavLink
             to="/subir"
-            onClick={cerrarSidebars}
+            onClick={() => setSidebarAbierto(false)}
             className="sm:hidden flex items-center justify-center gap-2 bg-accent text-white text-sm font-semibold px-4 py-2.5 rounded-full no-underline mt-2"
           >
             <IconUpload />
@@ -414,27 +419,55 @@ export default function AppShell() {
           </div>
         </aside>
 
-        {/* Pestaña con flecha para abrir/cerrar el sidebar en PC — en
-            celular no hace falta, ahí ya está el botón hamburguesa del
-            header. Se mueve junto con el borde del sidebar (left-0 ↔
-            left-64) así siempre queda pegada a su borde visible. */}
-        <button
-          type="button"
-          onClick={() => setSidebarEscritorioAbierto((v) => !v)}
-          aria-label={sidebarEscritorioAbierto ? "Esconder menú" : "Mostrar menú"}
-          className={`hidden lg:flex fixed top-1/2 -translate-y-1/2 z-20 w-6 h-14 items-center justify-center rounded-r-lg border border-l-0 border-border-soft bg-card text-muted-2 hover:text-ink appearance-none cursor-pointer transition-[left] duration-200 ${
-            sidebarEscritorioAbierto ? "left-64" : "left-0"
+        {/* Sidebar de PC — auto-hide por hover, como un dock. Nunca es
+            "fixed": sigue en el flujo normal del flex, así que animar su
+            ancho empuja/libera espacio del contenido de verdad (encoge al
+            mostrarse, expande al esconderse) en vez de flotar encima.
+            Colapsado queda una tira angosta (de ahí el "w-3" de reposo)
+            que sirve de zona de hover para volver a mostrarlo — el
+            contenido de adentro mantiene su ancho real (w-64) todo el
+            tiempo y el overflow-hidden del borde lo recorta, así no hay
+            texto reacomodándose feo durante la animación. */}
+        <aside
+          onMouseEnter={() => setSidebarEscritorioAbierto(true)}
+          onMouseLeave={() => setSidebarEscritorioAbierto(false)}
+          className={`hidden lg:block shrink-0 sticky top-16 h-[calc(100vh-4rem)] bg-card border-r border-border-soft overflow-hidden transition-[width] duration-200 ${
+            sidebarEscritorioAbierto ? "w-64" : "w-3"
           }`}
         >
-          <span className={sidebarEscritorioAbierto ? "rotate-180 flex" : "flex"}>
-            <IconChevron />
-          </span>
-        </button>
+          <div
+            className={`w-64 h-full flex flex-col gap-1 p-4 overflow-y-auto ${trackActual ? "pb-20" : ""}`}
+          >
+            {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} className={sidebarLinkClass}>
+                {item.icon}
+                {item.label}
+              </NavLink>
+            ))}
+
+            {perfil?.rol === "admin" && (
+              <NavLink to="/admin" className={sidebarLinkClass}>
+                <IconShield />
+                Admin
+              </NavLink>
+            )}
+
+            <div className="flex-1" />
+
+            <div className="rounded-xl bg-cream p-3.5 text-xs text-muted mt-2">
+              ClubPack — hecho por DJs, para DJs. Catálogo cerrado, uso privado del grupo.
+            </div>
+          </div>
+        </aside>
 
         <main
           className={`flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 ${trackActual ? "pb-24" : ""}`}
         >
-          <Outlet />
+          {/* Las páginas hijas (ver CatalogoPage) pueden leer si el sidebar
+              de PC está desplegado con useOutletContext — por ejemplo para
+              sumar más portadas por fila cuando el contenido tiene más
+              ancho disponible al estar escondido. */}
+          <Outlet context={{ sidebarEscritorioAbierto } satisfies AppShellContext} />
         </main>
       </div>
 

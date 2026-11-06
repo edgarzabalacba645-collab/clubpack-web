@@ -5,6 +5,7 @@ import SubirTrackPage from "./pages/SubirTrackPage";
 import PlaylistsPage from "./pages/PlaylistsPage";
 import ChatPage from "./pages/ChatPage";
 import HerramientasPage from "./pages/HerramientasPage";
+import Top50Page from "./pages/Top50Page";
 import MiCuentaPage from "./pages/MiCuentaPage";
 import SuscripcionPage from "./pages/SuscripcionPage";
 import AdminPage from "./pages/AdminPage";
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/playlists" element={<PlaylistsPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/herramientas" element={<HerramientasPage />} />
+            <Route path="/top50" element={<Top50Page />} />
             <Route path="/cuenta" element={<MiCuentaPage />} />
             <Route path="/suscripcion" element={<SuscripcionPage />} />
 

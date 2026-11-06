@@ -26,14 +26,16 @@ import type {
 } from "../lib/types";
 import Portada from "../components/Portada";
 
-type Tab = "usuarios" | "generos" | "herramientas" | "duplicados" | "top50" | "catalogo" | "suscripcion";
+// Top 50 ya no vive acá — ahora es su propia página (/top50), visible
+// para cualquier miembro y no solo para admins (ver Top50Page.tsx y
+// sql/007_top50_para_todos.sql).
+type Tab = "usuarios" | "generos" | "herramientas" | "duplicados" | "catalogo" | "suscripcion";
 
 const TABS: { id: Tab; etiqueta: string }[] = [
   { id: "usuarios", etiqueta: "Usuarios" },
   { id: "generos", etiqueta: "Géneros" },
   { id: "herramientas", etiqueta: "Herramientas DJ" },
   { id: "duplicados", etiqueta: "Duplicados" },
-  { id: "top50", etiqueta: "Top 50" },
   { id: "catalogo", etiqueta: "Catálogo completo" },
   { id: "suscripcion", etiqueta: "Suscripción" },
 ];
@@ -64,7 +66,6 @@ export default function AdminPage() {
       {tab === "generos" && <GenerosTab />}
       {tab === "herramientas" && <HerramientasTab />}
       {tab === "duplicados" && <DuplicadosTab />}
-      {tab === "top50" && <Top50Tab />}
       {tab === "catalogo" && <CatalogoCompletoTab />}
       {tab === "suscripcion" && <SuscripcionAdminTab />}
     </div>
@@ -696,81 +697,6 @@ function LadoDuplicado({
       >
         {ocupado ? "Borrando…" : "🗑️ Borrar éste"}
       </button>
-    </div>
-  );
-}
-
-// ============================================================
-// TOP 50
-// ============================================================
-
-interface FilaRanking {
-  trackId: string;
-  titulo: string;
-  remixer: string | null;
-  descargas: number;
-}
-
-function Top50Tab() {
-  const [ranking, setRanking] = useState<FilaRanking[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      setCargando(true);
-      setError(null);
-      try {
-        const { data, error } = await supabase.from("descargas").select("track_id, tracks(titulo, remixer)");
-        if (error) throw error;
-
-        const conteo = new Map<string, FilaRanking>();
-        for (const d of (data ?? []) as unknown as {
-          track_id: string;
-          tracks: { titulo: string; remixer: string | null } | null;
-        }[]) {
-          const actual = conteo.get(d.track_id);
-          if (actual) {
-            actual.descargas += 1;
-          } else {
-            conteo.set(d.track_id, {
-              trackId: d.track_id,
-              titulo: d.tracks?.titulo ?? "—",
-              remixer: d.tracks?.remixer ?? null,
-              descargas: 1,
-            });
-          }
-        }
-        setRanking([...conteo.values()].sort((a, b) => b.descargas - a.descargas).slice(0, 50));
-      } catch (e) {
-        setError(mensajeErrorAmigable(e));
-      } finally {
-        setCargando(false);
-      }
-    })();
-  }, []);
-
-  if (cargando) return <p className="text-sm text-muted m-0">Cargando…</p>;
-  if (error) return <p className="text-sm text-accent font-medium m-0">{error}</p>;
-  if (ranking.length === 0) {
-    return <p className="text-sm text-muted m-0">Todavía no hay descargas registradas.</p>;
-  }
-
-  return (
-    <div className="bg-card rounded-2xl border border-border-soft overflow-hidden max-w-2xl">
-      {ranking.map((f, i) => (
-        <div
-          key={f.trackId}
-          className="flex items-center gap-4 px-5 py-3 border-b border-border-soft last:border-b-0"
-        >
-          <span className="text-xs font-bold text-muted w-6 shrink-0">{i + 1}</span>
-          <div className="min-w-0 flex-1">
-            <div className="font-semibold text-sm truncate">{f.titulo}</div>
-            {f.remixer && <div className="text-xs text-muted truncate">{f.remixer}</div>}
-          </div>
-          <span className="text-sm font-bold shrink-0">{f.descargas}</span>
-        </div>
-      ))}
     </div>
   );
 }
