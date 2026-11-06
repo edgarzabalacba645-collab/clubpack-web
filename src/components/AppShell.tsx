@@ -142,6 +142,17 @@ function IconClose() {
   );
 }
 
+/* Flecha de la pestaña que abre/cierra el sidebar en la versión de PC —
+   apunta a la derecha ("abrir") por defecto; se rota 180° cuando el
+   sidebar está abierto, para que apunte a la izquierda ("cerrar"). */
+function IconChevron() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
 function IconPlayMini() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -236,11 +247,22 @@ export default function AppShell() {
   const navigate = useNavigate();
   const [busqueda, setBusqueda] = useState("");
   const [sidebarAbierto, setSidebarAbierto] = useState(false);
+  // Sidebar de la versión de PC (lg+): antes quedaba siempre fijo ocupando
+  // espacio; ahora arranca escondido a la izquierda y se despliega con la
+  // pestaña-flecha (ver más abajo), igual que el drawer de celular pero
+  // con su propio estado — así en pantallas grandes también se puede
+  // ganar todo el ancho para el contenido cuando no se lo necesita.
+  const [sidebarEscritorioAbierto, setSidebarEscritorioAbierto] = useState(false);
+
+  function cerrarSidebars() {
+    setSidebarAbierto(false);
+    setSidebarEscritorioAbierto(false);
+  }
 
   function buscar(e: FormEvent) {
     e.preventDefault();
     navigate(`/catalogo${busqueda.trim() ? `?q=${encodeURIComponent(busqueda.trim())}` : ""}`);
-    setSidebarAbierto(false);
+    cerrarSidebars();
   }
 
   const inicial = (perfil?.nombre_dj || perfil?.email || "DJ").trim().charAt(0).toUpperCase();
@@ -319,21 +341,27 @@ export default function AppShell() {
       </header>
 
       <div className="flex">
-        {/* Overlay mobile */}
-        {sidebarAbierto && (
+        {/* Overlay — en celular oscurece el fondo; en PC queda invisible
+            pero sigue capturando el click afuera para cerrar el drawer. */}
+        {(sidebarAbierto || sidebarEscritorioAbierto) && (
           <button
             type="button"
             aria-label="Cerrar menú"
-            onClick={() => setSidebarAbierto(false)}
-            className="fixed inset-0 bg-overlay z-20 lg:hidden appearance-none border-none cursor-pointer"
+            onClick={cerrarSidebars}
+            className="fixed inset-0 bg-overlay lg:bg-transparent z-20 appearance-none border-none cursor-pointer"
           />
         )}
 
-        {/* Sidebar */}
+        {/* Sidebar — en celular lo maneja sidebarAbierto (botón hamburguesa
+            del header); en PC lo maneja sidebarEscritorioAbierto (pestaña
+            con flecha de al lado). Fixed en los dos casos: así, cuando
+            está escondido, el contenido aprovecha todo el ancho. */}
         <aside
-          className={`fixed lg:sticky top-16 lg:top-16 left-0 z-20 w-64 h-[calc(100vh-4rem)] bg-card border-r border-border-soft flex flex-col gap-1 p-4 overflow-y-auto transition-transform duration-200 ${
+          className={`fixed top-16 left-0 z-20 w-64 h-[calc(100vh-4rem)] bg-card border-r border-border-soft flex flex-col gap-1 p-4 overflow-y-auto transition-transform duration-200 ${
             trackActual ? "pb-20" : ""
-          } ${sidebarAbierto ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+          } ${sidebarAbierto ? "translate-x-0" : "-translate-x-full"} ${
+            sidebarEscritorioAbierto ? "lg:translate-x-0" : "lg:-translate-x-full"
+          }`}
         >
           <form onSubmit={buscar} className="md:hidden mb-2">
             <label className="relative block">
@@ -356,7 +384,7 @@ export default function AppShell() {
               key={item.to}
               to={item.to}
               className={sidebarLinkClass}
-              onClick={() => setSidebarAbierto(false)}
+              onClick={cerrarSidebars}
             >
               {item.icon}
               {item.label}
@@ -364,7 +392,7 @@ export default function AppShell() {
           ))}
 
           {perfil?.rol === "admin" && (
-            <NavLink to="/admin" className={sidebarLinkClass} onClick={() => setSidebarAbierto(false)}>
+            <NavLink to="/admin" className={sidebarLinkClass} onClick={cerrarSidebars}>
               <IconShield />
               Admin
             </NavLink>
@@ -374,7 +402,7 @@ export default function AppShell() {
 
           <NavLink
             to="/subir"
-            onClick={() => setSidebarAbierto(false)}
+            onClick={cerrarSidebars}
             className="sm:hidden flex items-center justify-center gap-2 bg-accent text-white text-sm font-semibold px-4 py-2.5 rounded-full no-underline mt-2"
           >
             <IconUpload />
@@ -385,6 +413,23 @@ export default function AppShell() {
             ClubPack — hecho por DJs, para DJs. Catálogo cerrado, uso privado del grupo.
           </div>
         </aside>
+
+        {/* Pestaña con flecha para abrir/cerrar el sidebar en PC — en
+            celular no hace falta, ahí ya está el botón hamburguesa del
+            header. Se mueve junto con el borde del sidebar (left-0 ↔
+            left-64) así siempre queda pegada a su borde visible. */}
+        <button
+          type="button"
+          onClick={() => setSidebarEscritorioAbierto((v) => !v)}
+          aria-label={sidebarEscritorioAbierto ? "Esconder menú" : "Mostrar menú"}
+          className={`hidden lg:flex fixed top-1/2 -translate-y-1/2 z-20 w-6 h-14 items-center justify-center rounded-r-lg border border-l-0 border-border-soft bg-card text-muted-2 hover:text-ink appearance-none cursor-pointer transition-[left] duration-200 ${
+            sidebarEscritorioAbierto ? "left-64" : "left-0"
+          }`}
+        >
+          <span className={sidebarEscritorioAbierto ? "rotate-180 flex" : "flex"}>
+            <IconChevron />
+          </span>
+        </button>
 
         <main
           className={`flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 ${trackActual ? "pb-24" : ""}`}
