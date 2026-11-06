@@ -13,13 +13,13 @@ function IconLogo() {
       <circle cx="12" cy="12" r="12" fill="currentColor" />
       <path
         d="M7 14.5v-3a5 5 0 0 1 10 0v3"
-        stroke="var(--color-card)"
+        stroke="var(--color-ink)"
         strokeWidth="2"
         strokeLinecap="round"
         fill="none"
       />
-      <rect x="5.3" y="13.3" width="2.6" height="4.4" rx="1.3" fill="var(--color-card)" />
-      <rect x="16.1" y="13.3" width="2.6" height="4.4" rx="1.3" fill="var(--color-card)" />
+      <rect x="5.3" y="13.3" width="2.6" height="4.4" rx="1.3" fill="var(--color-ink)" />
+      <rect x="16.1" y="13.3" width="2.6" height="4.4" rx="1.3" fill="var(--color-ink)" />
     </svg>
   );
 }
