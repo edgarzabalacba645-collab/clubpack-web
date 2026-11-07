@@ -615,6 +615,26 @@ export default function CatalogoPage() {
           </div>
         )}
 
+        {/* Encabezados — solo desde sm: (ahí es donde las columnas de la
+            derecha dejan de estar ocultas). Los anchos/gaps de cada <span>
+            tienen que calcar exactamente a los de la fila de abajo para
+            que quede alineado; "Acciones" no lleva ancho fijo porque la
+            cantidad de botones por fila varía (Editar es solo del dueño o
+            admin, Borrar solo de admin). */}
+        {tracks.length > 0 && (
+          <div className="hidden sm:flex items-center gap-x-4 px-5 py-2.5 border-b border-border-soft text-xs font-semibold text-muted uppercase tracking-wide">
+            <span className="w-4 shrink-0" aria-hidden="true" />
+            <span className="w-9 shrink-0" aria-hidden="true" />
+            <span className="w-9 shrink-0" aria-hidden="true" />
+            <span className="min-w-[150px] flex-1">Tema</span>
+            <span className="w-28 shrink-0">Género</span>
+            <span className="w-16 shrink-0 text-right">BPM</span>
+            <span className="w-12 shrink-0 text-center">Tonalidad</span>
+            <span className="w-12 shrink-0 text-right">Duración</span>
+            <span className="shrink-0">Acciones</span>
+          </div>
+        )}
+
         {tracks.map((t) => {
           const seleccionado = seleccion.has(t.id);
           const esElSonando = player.trackActual?.id === t.id;
@@ -622,6 +642,7 @@ export default function CatalogoPage() {
             cargandoPreviewId === t.id || (esElSonando && player.estado === "cargando");
           const puedeEditar = t.subido_por === session?.user.id || perfil?.rol === "admin";
           const esAdmin = perfil?.rol === "admin";
+          const iGenero = generos.findIndex((g) => g.id === t.genero_id);
           return (
             <div
               key={t.id}
@@ -671,8 +692,19 @@ export default function CatalogoPage() {
                   </div>
                 </div>
 
-                <div className="hidden sm:block text-xs text-muted w-24 shrink-0">
-                  {t.generos?.nombre ?? "—"}
+                <div className="hidden sm:block w-28 shrink-0">
+                  {t.generos?.nombre ? (
+                    <span
+                      title={t.generos.nombre}
+                      className={`inline-block max-w-full truncate text-xs font-semibold px-2.5 py-1 rounded-full ${badgeGenero(
+                        iGenero < 0 ? 0 : iGenero,
+                      )}`}
+                    >
+                      {t.generos.nombre}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted">—</span>
+                  )}
                 </div>
                 <div className="hidden sm:block text-xs text-muted w-16 shrink-0 text-right">
                   {formatearBpm(t.bpm)} bpm
