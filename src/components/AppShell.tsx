@@ -515,7 +515,17 @@ export default function AppShell() {
         </aside>
 
         <main
-          className={`flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6 sm:py-8 ${trackActual ? "pb-24" : ""}`}
+          // El padding inferior va aparte de "py-*" a propósito: un
+          // ternario que agrega "pb-24" cuando hay reproductor NO le gana
+          // a "sm:py-8" en pantallas >=640px (Tailwind mete las variantes
+          // "sm:" en un bloque @media que cae después de las utilidades
+          // planas en el CSS generado, así que "sm:py-8" terminaba
+          // pisando el "pb-24" aunque apareciera antes en el className).
+          // Separando pt-*/pb-* evitamos que compitan por la misma
+          // propiedad y el padding extra sí se aplica.
+          className={`flex-1 min-w-0 px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 ${
+            trackActual ? "pb-24" : "pb-6 sm:pb-8"
+          }`}
         >
           {/* Las páginas hijas (ver CatalogoPage) pueden leer si el sidebar
               de PC está desplegado con useOutletContext — por ejemplo para
