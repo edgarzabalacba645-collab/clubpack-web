@@ -71,6 +71,15 @@ export default function CatalogoPage() {
   const [bpmMax, setBpmMax] = useState("");
   const [key, setKey] = useState("");
 
+  // "Catálogo completo" se pagina: cada Portada montada pide una URL
+  // firmada al backend (ver src/components/Portada.tsx -> urlImagen), que
+  // además chequea la suscripción contra Supabase — con todo el catálogo
+  // renderizado de una, esos pedidos crecen junto con la cantidad de
+  // temas y se notan cada vez más. Paginar acota cuántas Portadas están
+  // montadas a la vez, sin importar qué tan grande sea el catálogo.
+  const PAGINA_TAMANO = 40;
+  const [pagina, setPagina] = useState(1);
+
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
   // Solo cubre el momentito de pedir la URL firmada antes de poder
   // arrancar la reproducción en sí — una vez que arranca, el estado
@@ -124,6 +133,7 @@ export default function CatalogoPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    setPagina(1);
     const handle = setTimeout(() => {
       cargarTracks();
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -362,6 +372,15 @@ export default function CatalogoPage() {
   // amontonarlas — con el sidebar de PC escondido hay más ancho real
   // disponible de entrada (ver AppShellContext), se suman unas pocas más.
   const destacados = tracks.slice(0, sidebarEscritorioAbierto ? 14 : 18);
+
+  const totalPaginas = Math.max(1, Math.ceil(tracks.length / PAGINA_TAMANO));
+  // Por si la lista se achica (un filtro, un borrado) y la página en la
+  // que uno estaba ya no existe más.
+  const paginaSegura = Math.min(pagina, totalPaginas);
+  const tracksPagina = tracks.slice(
+    (paginaSegura - 1) * PAGINA_TAMANO,
+    paginaSegura * PAGINA_TAMANO,
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -618,10 +637,13 @@ export default function CatalogoPage() {
         {/* Encabezados — solo desde sm: (ahí es donde las columnas de la
             derecha dejan de estar ocultas). Los anchos/gaps de cada <span>
             tienen que calcar exactamente a los de la fila de abajo para
-            que quede alineado; "Acciones" no lleva ancho fijo porque la
-            cantidad de botones por fila varía (Editar es solo del dueño o
-            admin, Borrar solo de admin). */}
-        {tracks.length > 0 && (
+            que quede alineado — "Acciones" incluido, con w-56 fijo en
+            ambos lados aunque la fila tenga 1 botón (Bajar solo) o 3
+            (+ Editar/Borrar según quién sea): si "Acciones" no fuera de
+            ancho fijo, "Tema" (el único flex-1) terminaría midiendo
+            distinto en el encabezado que en cada fila y todo se
+            correría de nuevo. */}
+        {tracksPagina.length > 0 && (
           <div className="hidden sm:flex items-center gap-x-4 px-5 py-2.5 border-b border-border-soft text-xs font-semibold text-muted uppercase">
             <span className="w-4 shrink-0" aria-hidden="true" />
             <span className="w-9 shrink-0" aria-hidden="true" />
@@ -635,7 +657,7 @@ export default function CatalogoPage() {
           </div>
         )}
 
-        {tracks.map((t) => {
+        {tracksPagina.map((t) => {
           const seleccionado = seleccion.has(t.id);
           const esElSonando = player.trackActual?.id === t.id;
           const mostrandoSpinner =
@@ -782,6 +804,30 @@ export default function CatalogoPage() {
           );
         })}
         </div>
+
+        {totalPaginas > 1 && (
+          <div className="flex items-center justify-center gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              disabled={paginaSegura <= 1}
+              className="text-sm font-semibold px-4 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-40 disabled:cursor-default"
+            >
+              Anterior
+            </button>
+            <span className="text-sm text-muted">
+              Página {paginaSegura} de {totalPaginas}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              disabled={paginaSegura >= totalPaginas}
+              className="text-sm font-semibold px-4 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-40 disabled:cursor-default"
+            >
+              Siguiente
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Barra de selección */}
