@@ -622,15 +622,15 @@ export default function CatalogoPage() {
             cantidad de botones por fila varía (Editar es solo del dueño o
             admin, Borrar solo de admin). */}
         {tracks.length > 0 && (
-          <div className="hidden sm:flex items-center gap-x-4 px-5 py-2.5 border-b border-border-soft text-xs font-semibold text-muted uppercase tracking-wide">
+          <div className="hidden sm:flex items-center gap-x-4 px-5 py-2.5 border-b border-border-soft text-xs font-semibold text-muted uppercase">
             <span className="w-4 shrink-0" aria-hidden="true" />
             <span className="w-9 shrink-0" aria-hidden="true" />
             <span className="w-9 shrink-0" aria-hidden="true" />
             <span className="min-w-[150px] flex-1">Tema</span>
             <span className="w-28 shrink-0">Género</span>
             <span className="w-16 shrink-0 text-right">BPM</span>
-            <span className="w-12 shrink-0 text-center">Tonalidad</span>
-            <span className="w-12 shrink-0 text-right">Duración</span>
+            <span className="w-20 shrink-0 text-center">Tonalidad</span>
+            <span className="w-20 shrink-0 text-right">Duración</span>
             <span className="shrink-0">Acciones</span>
           </div>
         )}
@@ -709,10 +709,10 @@ export default function CatalogoPage() {
                 <div className="hidden sm:block text-xs text-muted w-16 shrink-0 text-right">
                   {formatearBpm(t.bpm)} bpm
                 </div>
-                <div className="hidden sm:block text-xs text-muted w-12 shrink-0 text-center">
+                <div className="hidden sm:block text-xs text-muted w-20 shrink-0 text-center">
                   {t.key_armonica ?? "—"}
                 </div>
-                <div className="hidden sm:block text-xs text-muted w-12 shrink-0 text-right">
+                <div className="hidden sm:block text-xs text-muted w-20 shrink-0 text-right">
                   {formatearDuracion(t.duracion_seg)}
                 </div>
 
