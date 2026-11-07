@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { descargarBlob, descargarPlaylistZip, ApiError } from "../lib/api";
+import { descargarVariosDirecto, descargarPlaylistZip, ApiError } from "../lib/api";
 import { formatearBpm, formatearFecha, mensajeErrorAmigable } from "../lib/format";
 import type { Genero } from "../lib/types";
 import { useAuth } from "../lib/auth";
@@ -182,8 +182,8 @@ export default function PlaylistsPage() {
     setDescargandoId(playlist.id);
     setAviso(null);
     try {
-      const blob = await descargarPlaylistZip(playlist.id);
-      descargarBlob(blob, `${playlist.nombre}.zip`);
+      const { archivos } = await descargarPlaylistZip(playlist.id);
+      await descargarVariosDirecto(archivos);
     } catch (e) {
       setAviso(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
     } finally {
@@ -342,7 +342,7 @@ export default function PlaylistsPage() {
                   disabled={descargandoId === p.id || tracks.length === 0}
                   className="text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-50"
                 >
-                  {descargandoId === p.id ? "Armando ZIP…" : "Descargar ZIP completo"}
+                  {descargandoId === p.id ? "Descargando…" : "Descargar playlist completa"}
                 </button>
 
                 {esDueno && confirmandoBorrarId !== p.id && (

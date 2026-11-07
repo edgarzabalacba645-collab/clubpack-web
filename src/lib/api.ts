@@ -39,19 +39,6 @@ async function apiFetchJson<T>(path: string, init: RequestInit = {}): Promise<T>
   return res.json() as Promise<T>;
 }
 
-async function apiFetchBlob(path: string, init: RequestInit = {}): Promise<Blob> {
-  const token = await accessToken();
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      ...(init.headers ?? {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
-  if (!res.ok) await manejarError(res);
-  return res.blob();
-}
-
 // ---- Tipos que devuelve la API ----
 
 export interface DuplicadoCandidato {
@@ -143,16 +130,30 @@ export function obtenerUrlDescarga(trackId: string, registrar = true) {
   );
 }
 
-export function descargarZip(trackIds: string[], nombreZip?: string) {
-  return apiFetchBlob("/tracks/zip", {
+export interface ArchivoDescarga {
+  nombre: string;
+  url: string;
+}
+
+interface DescargaMultipleResponse {
+  archivos: ArchivoDescarga[];
+  expira_seg: number;
+}
+
+// El nombre quedó de cuando esto armaba un .zip de verdad — ver el
+// comentario de descargar_zip en el backend. Ahora devuelve una URL
+// firmada por track (cero bytes de audio pasan por nuestro servidor);
+// usar junto con descargarVariosDirecto, más abajo.
+export function descargarZip(trackIds: string[]) {
+  return apiFetchJson<DescargaMultipleResponse>("/tracks/zip", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ track_ids: trackIds, nombre_zip: nombreZip }),
+    body: JSON.stringify({ track_ids: trackIds }),
   });
 }
 
 export function descargarPlaylistZip(playlistId: string) {
-  return apiFetchBlob(`/playlists/${playlistId}/zip`, { method: "POST" });
+  return apiFetchJson<DescargaMultipleResponse>(`/playlists/${playlistId}/zip`, { method: "POST" });
 }
 
 // ---- Suscripción: Mercado Pago ----
@@ -234,7 +235,7 @@ export function marcarDuplicado(id: string, estado: "descartado" | "resuelto") {
   });
 }
 
-// ---- Utilidad: forzar la descarga de un Blob en el navegador ----
+// ---- Utilidad: forzar la descarga directa de uno o varios archivos ----
 
 export function abrirDescargaDirecta(url: string) {
   // La URL firmada de R2 ya trae Content-Disposition: attachment,
@@ -242,13 +243,27 @@ export function abrirDescargaDirecta(url: string) {
   window.open(url, "_blank");
 }
 
-export function descargarBlob(blob: Blob, nombreArchivo: string) {
-  const url = URL.createObjectURL(blob);
+function descargarUrlConNombre(url: string, nombreArchivo: string) {
+  // Como abrirDescargaDirecta, pero con un <a> en vez de window.open: al
+  // no abrir una pestaña nueva, no lo frena el bloqueador de pop-ups del
+  // navegador cuando se dispara varias veces seguidas (ver abajo).
   const a = document.createElement("a");
   a.href = url;
-  a.download = nombreArchivo;
+  a.download = nombreArchivo; // refuerzo — el Content-Disposition de R2 ya fuerza la descarga
+  a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+}
+
+export async function descargarVariosDirecto(archivos: ArchivoDescarga[]) {
+  // Para una selección o una playlist: dispara cada descarga directo de
+  // R2 (cero bytes de audio por nuestro servidor), con una pequeña pausa
+  // entre una y otra. Todas juntas en el mismo instante pueden hacer que
+  // el navegador las trate como descargas automáticas y pida permiso
+  // para seguir — normal, y solo pasa una vez por sitio.
+  for (const archivo of archivos) {
+    descargarUrlConNombre(archivo.url, archivo.nombre);
+    await new Promise((resolver) => setTimeout(resolver, 350));
+  }
 }

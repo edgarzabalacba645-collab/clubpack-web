@@ -6,7 +6,7 @@ import {
   abrirDescargaDirecta,
   ApiError,
   borrarTrackAdmin,
-  descargarBlob,
+  descargarVariosDirecto,
   descargarZip,
   obtenerUrlDescarga,
   subirPortada,
@@ -226,10 +226,10 @@ export default function CatalogoPage() {
     setProcesandoZip(true);
     setAvisoAccion(null);
     try {
-      const blob = await descargarZip([...seleccion], "clubpack-seleccion");
-      descargarBlob(blob, `clubpack-${seleccion.size}-tracks.zip`);
+      const { archivos } = await descargarZip([...seleccion]);
+      await descargarVariosDirecto(archivos);
     } catch (e) {
-      setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo armar el ZIP.");
+      setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo descargar la selección.");
     } finally {
       setProcesandoZip(false);
     }
@@ -807,7 +807,7 @@ export default function CatalogoPage() {
             disabled={procesandoZip}
             className="text-sm font-semibold bg-accent text-white px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
           >
-            {procesandoZip ? "Armando ZIP…" : "Descargar ZIP"}
+            {procesandoZip ? "Descargando…" : "Descargar selección"}
           </button>
           <button
             type="button"
