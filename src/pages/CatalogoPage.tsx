@@ -631,7 +631,7 @@ export default function CatalogoPage() {
             <span className="w-16 shrink-0 text-right">BPM</span>
             <span className="w-20 shrink-0 text-center">Tonalidad</span>
             <span className="w-20 shrink-0 text-right">Duración</span>
-            <span className="shrink-0">Acciones</span>
+            <span className="w-56 shrink-0">Acciones</span>
           </div>
         )}
 
@@ -716,57 +716,67 @@ export default function CatalogoPage() {
                   {formatearDuracion(t.duracion_seg)}
                 </div>
 
-                {puedeEditar && (
-                  <button
-                    type="button"
-                    onClick={() => abrirEdicion(t)}
-                    aria-label={`Editar ${t.titulo}`}
-                    className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer"
-                  >
-                    Editar
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => descargarIndividual(t)}
-                  disabled={descargando === t.id}
-                  className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-50"
-                >
-                  {descargando === t.id ? "…" : "Bajar"}
-                </button>
-
-                {esAdmin && confirmandoBorrarId !== t.id && (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmandoBorrarId(t.id)}
-                    aria-label={`Borrar ${t.titulo}`}
-                    className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-accent hover:text-accent transition-colors appearance-none bg-transparent cursor-pointer"
-                  >
-                    Borrar
-                  </button>
-                )}
-                {esAdmin && confirmandoBorrarId === t.id && (
-                  <div className="shrink-0 flex items-center gap-1.5">
-                    <span className="text-xs text-muted">¿Seguro?</span>
+                {/* Ancho fijo (no shrink/grow) para que esta columna mida
+                    siempre lo mismo sin importar cuántos botones entren
+                    en cada fila (Editar es del dueño o admin, Borrar
+                    solo admin) — así "Tema" (el único flex-1 de la fila)
+                    termina midiendo siempre igual que en el encabezado,
+                    que es lo que los mantiene alineados. Ver el <span>
+                    "Acciones" del encabezado, más arriba, con el mismo
+                    w-56. */}
+                <div className="w-56 shrink-0 flex flex-wrap items-center gap-2">
+                  {puedeEditar && (
                     <button
                       type="button"
-                      onClick={() => borrarTrack(t)}
-                      disabled={borrandoId === t.id}
-                      className="text-xs font-semibold px-2.5 py-2 rounded-lg bg-accent text-white appearance-none border-none cursor-pointer disabled:opacity-60"
+                      onClick={() => abrirEdicion(t)}
+                      aria-label={`Editar ${t.titulo}`}
+                      className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer"
                     >
-                      {borrandoId === t.id ? "…" : "Sí, borrar"}
+                      Editar
                     </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => descargarIndividual(t)}
+                    disabled={descargando === t.id}
+                    className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-50"
+                  >
+                    {descargando === t.id ? "…" : "Bajar"}
+                  </button>
+
+                  {esAdmin && confirmandoBorrarId !== t.id && (
                     <button
                       type="button"
-                      onClick={() => setConfirmandoBorrarId(null)}
-                      disabled={borrandoId === t.id}
-                      className="text-xs text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer disabled:opacity-60"
+                      onClick={() => setConfirmandoBorrarId(t.id)}
+                      aria-label={`Borrar ${t.titulo}`}
+                      className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-accent hover:text-accent transition-colors appearance-none bg-transparent cursor-pointer"
                     >
-                      No
+                      Borrar
                     </button>
-                  </div>
-                )}
+                  )}
+                  {esAdmin && confirmandoBorrarId === t.id && (
+                    <div className="shrink-0 flex items-center gap-1.5">
+                      <span className="text-xs text-muted">¿Seguro?</span>
+                      <button
+                        type="button"
+                        onClick={() => borrarTrack(t)}
+                        disabled={borrandoId === t.id}
+                        className="text-xs font-semibold px-2.5 py-2 rounded-lg bg-accent text-white appearance-none border-none cursor-pointer disabled:opacity-60"
+                      >
+                        {borrandoId === t.id ? "…" : "Sí, borrar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmandoBorrarId(null)}
+                        disabled={borrandoId === t.id}
+                        className="text-xs text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer disabled:opacity-60"
+                      >
+                        No
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
