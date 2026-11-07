@@ -183,7 +183,9 @@ export function SubidaProvider({ children }: { children: ReactNode }) {
       setFase("listo");
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) {
-        // El staging venció (30 min) — hay que volver a analizar el archivo.
+        // El staging venció (ver STAGING_TTL_SEG en el backend) — hay que
+        // volver a analizar el archivo. El tiempo real lo manda el backend
+        // en e.message, así que no lo repetimos hardcodeado acá.
         setError(`${e.message} Volvé a analizarlo.`);
         setAnalisis(null);
         setFase("formulario");
