@@ -7,8 +7,11 @@ import {
   escanearDuplicados,
   listarDuplicadosPendientes,
   marcarDuplicado,
+  obtenerBalanceCloudflare,
   subirImagenHerramienta,
+  type BalanceCloudflare,
   type DuplicadoPendiente,
+  type ItemUsoCloudflare,
 } from "../lib/api";
 import { formatearBpm, formatearFecha, formatearMonto, mensajeErrorAmigable } from "../lib/format";
 import type {
@@ -29,7 +32,7 @@ import Portada from "../components/Portada";
 // Top 50 ya no vive acá — ahora es su propia página (/top50), visible
 // para cualquier miembro y no solo para admins (ver Top50Page.tsx y
 // sql/007_top50_para_todos.sql).
-type Tab = "usuarios" | "generos" | "herramientas" | "duplicados" | "catalogo" | "suscripcion";
+type Tab = "usuarios" | "generos" | "herramientas" | "duplicados" | "catalogo" | "suscripcion" | "uso";
 
 const TABS: { id: Tab; etiqueta: string }[] = [
   { id: "usuarios", etiqueta: "Usuarios" },
@@ -38,6 +41,7 @@ const TABS: { id: Tab; etiqueta: string }[] = [
   { id: "duplicados", etiqueta: "Duplicados" },
   { id: "catalogo", etiqueta: "Catálogo completo" },
   { id: "suscripcion", etiqueta: "Suscripción" },
+  { id: "uso", etiqueta: "Uso y costos" },
 ];
 
 export default function AdminPage() {
@@ -68,6 +72,7 @@ export default function AdminPage() {
       {tab === "duplicados" && <DuplicadosTab />}
       {tab === "catalogo" && <CatalogoCompletoTab />}
       {tab === "suscripcion" && <SuscripcionAdminTab />}
+      {tab === "uso" && <UsoTab />}
     </div>
   );
 }
@@ -1053,5 +1058,160 @@ function Campo({ etiqueta, children }: { etiqueta: string; children: ReactNode }
       {etiqueta}
       {children}
     </label>
+  );
+}
+
+// ============================================================
+// USO Y COSTOS (balance de Cloudflare R2)
+// ============================================================
+
+function UsoTab() {
+  const [balance, setBalance] = useState<BalanceCloudflare | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    setError(null);
+    try {
+      setBalance(await obtenerBalanceCloudflare());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  if (cargando) return <p className="text-sm text-muted m-0">Cargando…</p>;
+  if (error) return <p className="text-sm text-accent font-medium m-0">{error}</p>;
+  if (!balance) return null;
+
+  if (!balance.configurado) {
+    return (
+      <div className="max-w-2xl bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-4">
+        <p className="text-sm font-semibold m-0">{balance.mensaje}</p>
+        <p className="text-sm text-muted m-0">
+          Para que este panel pueda leer los números reales de Cloudflare (storage, lecturas,
+          escrituras y costo), hace falta un token de solo lectura — tres pasos:
+        </p>
+        <ol className="text-sm text-muted m-0 pl-5 flex flex-col gap-1.5 list-decimal">
+          <li>
+            En{" "}
+            <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noreferrer" className="text-ink underline">
+              dash.cloudflare.com → Mi perfil → API Tokens
+            </a>
+            , tocá <strong>Create Token → Create Custom Token</strong>.
+          </li>
+          <li>
+            Le ponés un nombre (ej. "ClubPack - solo lectura") y en Permisos elegís{" "}
+            <strong>Account → Account Analytics → Read</strong> — nada más, no necesita poder
+            escribir ni borrar nada.
+          </li>
+          <li>
+            En Account Resources dejás <strong>Include → tu cuenta</strong>, creás el token y
+            copiás el valor (solo se muestra esa vez).
+          </li>
+          <li>
+            En Render, en el servicio <strong>clubpack-api → Environment</strong>, agregás una
+            variable nueva: Key <code className="bg-cream px-1 rounded">CLOUDFLARE_API_TOKEN</code>
+            , Value el token que copiaste, y guardás — Render vuelve a desplegar solo.
+          </li>
+        </ol>
+        <button
+          type="button"
+          onClick={cargar}
+          className="self-start text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer"
+        >
+          Ya lo configuré, volver a intentar
+        </button>
+      </div>
+    );
+  }
+
+  const costoTotal = balance.costo_total_usd ?? 0;
+
+  return (
+    <div className="max-w-2xl flex flex-col gap-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm text-muted m-0">
+          Período en curso: {balance.periodo_desde} – {balance.periodo_hasta}
+        </p>
+        <p className="text-sm font-semibold m-0">
+          Costo estimado del mes: <span className="text-base">USD {costoTotal.toFixed(2)}</span>
+        </p>
+      </div>
+
+      {balance.storage && (
+        <TarjetaUso etiqueta="Storage (todo lo guardado)" item={balance.storage} unidad="GB" decimales={2} />
+      )}
+      {balance.operaciones_a && (
+        <TarjetaUso
+          etiqueta="Subidas y otras escrituras (Clase A)"
+          item={balance.operaciones_a}
+          unidad="operaciones"
+          decimales={0}
+        />
+      )}
+      {balance.operaciones_b && (
+        <TarjetaUso
+          etiqueta="Escuchas y descargas (Clase B)"
+          item={balance.operaciones_b}
+          unidad="operaciones"
+          decimales={0}
+        />
+      )}
+
+      <p className="text-xs text-muted-2 m-0">
+        El tráfico de salida (los bytes de audio en sí, al escuchar o descargar) no tiene costo en
+        R2 — por eso no aparece como límite acá. Los números se actualizan cada pocos minutos, no
+        al instante.
+      </p>
+    </div>
+  );
+}
+
+function TarjetaUso({
+  etiqueta,
+  item,
+  unidad,
+  decimales,
+}: {
+  etiqueta: string;
+  item: ItemUsoCloudflare;
+  unidad: string;
+  decimales: number;
+}) {
+  const porcentaje = Math.max(0, item.porcentaje);
+  const anchoBarra = Math.min(100, porcentaje);
+  const cerca = porcentaje >= 80;
+
+  return (
+    <div className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <span className="text-sm font-semibold">{etiqueta}</span>
+        <span className="text-xs text-muted">
+          {item.usado.toLocaleString("es-AR", { maximumFractionDigits: decimales })} / {" "}
+          {item.limite_gratis.toLocaleString("es-AR")} {unidad} gratis
+        </span>
+      </div>
+
+      <div className="h-2 rounded-full bg-border overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-[width] ${cerca ? "bg-accent" : "bg-accent-lime"}`}
+          style={{ width: `${anchoBarra}%` }}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-2">{porcentaje.toFixed(1)}% del límite gratis usado</span>
+        <span className={`text-xs font-semibold ${item.costo_usd > 0 ? "text-accent" : "text-muted-2"}`}>
+          {item.costo_usd > 0 ? `+ USD ${item.costo_usd.toFixed(2)} este mes` : "Sin costo todavía"}
+        </span>
+      </div>
+    </div>
   );
 }

@@ -235,6 +235,30 @@ export function marcarDuplicado(id: string, estado: "descartado" | "resuelto") {
   });
 }
 
+// ---- Admin: balance de uso de Cloudflare R2 ----
+
+export interface ItemUsoCloudflare {
+  usado: number;
+  limite_gratis: number;
+  porcentaje: number;
+  costo_usd: number;
+}
+
+export interface BalanceCloudflare {
+  configurado: boolean;
+  mensaje?: string;
+  periodo_desde?: string;
+  periodo_hasta?: string;
+  storage?: ItemUsoCloudflare;
+  operaciones_a?: ItemUsoCloudflare;
+  operaciones_b?: ItemUsoCloudflare;
+  costo_total_usd?: number;
+}
+
+export function obtenerBalanceCloudflare() {
+  return apiFetchJson<BalanceCloudflare>("/admin/uso/cloudflare");
+}
+
 // ---- Utilidad: forzar la descarga directa de uno o varios archivos ----
 
 export function abrirDescargaDirecta(url: string) {
