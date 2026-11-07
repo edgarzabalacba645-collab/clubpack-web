@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import type { AppShellContext } from "../components/AppShell";
+import CarruselHorizontal from "../components/CarruselHorizontal";
 import { supabase } from "../lib/supabase";
 import {
   abrirDescargaDirecta,
@@ -15,7 +16,6 @@ import {
   CAMELOT_KEYS,
   formatearBpm,
   formatearDuracion,
-  formatearFecha,
   mensajeErrorAmigable,
 } from "../lib/format";
 import type { Genero, PlaylistInsert, PlaylistTrackInsert } from "../lib/types";
@@ -357,11 +357,11 @@ export default function CatalogoPage() {
   );
 
   const mostrarDescubrimiento = !hayFiltrosActivos && !cargando && tracks.length > 0;
-  // Con el sidebar de PC escondido el contenido tiene más ancho real
-  // disponible (ver AppShellContext) — se suman 2 portadas más para
-  // aprovecharlo en vez de dejar espacio vacío en la fila.
-  const destacados = tracks.slice(0, sidebarEscritorioAbierto ? 5 : 7);
-  const recientes = tracks.slice(0, 8);
+  // "Recién subidos" es ahora un carrusel (ver CarruselHorizontal) en vez
+  // de una fila fija, así que puede mostrar bastantes más portadas sin
+  // amontonarlas — con el sidebar de PC escondido hay más ancho real
+  // disponible de entrada (ver AppShellContext), se suman unas pocas más.
+  const destacados = tracks.slice(0, sidebarEscritorioAbierto ? 14 : 18);
 
   return (
     <div className="flex flex-col gap-8">
@@ -555,13 +555,13 @@ export default function CatalogoPage() {
       )}
       {error && <p className="text-sm text-accent font-medium">{error}</p>}
 
-      {/* Recién subidos — los últimos subidos, como tarjetas */}
+      {/* Recién subidos — los últimos subidos, como tarjetas en un carrusel */}
       {mostrarDescubrimiento && (
         <div className="flex flex-col gap-3.5">
           <div className="flex items-center justify-between">
             <h2 className="font-display font-bold text-lg m-0">Recién subidos</h2>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-1 -mx-1 px-1">
+          <CarruselHorizontal>
             {destacados.map((t) => {
               const esElSonando = player.trackActual?.id === t.id;
               const mostrandoSpinner =
@@ -601,62 +601,7 @@ export default function CatalogoPage() {
                 </button>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* Últimos aportes de la comunidad */}
-      {mostrarDescubrimiento && (
-        <div className="flex flex-col gap-3.5">
-          <h2 className="font-display font-bold text-lg m-0">Últimos aportes de la comunidad</h2>
-          <div className="bg-card rounded-2xl border border-border-soft overflow-hidden overflow-x-auto">
-            <table className="w-full text-sm border-collapse min-w-[560px]">
-              <thead>
-                <tr className="text-left text-xs text-muted border-b border-border-soft">
-                  <th className="font-semibold px-5 py-3">Tema</th>
-                  <th className="font-semibold px-3 py-3 hidden sm:table-cell">Género</th>
-                  <th className="font-semibold px-3 py-3 text-right">BPM</th>
-                  <th className="font-semibold px-3 py-3 hidden md:table-cell">Subido por</th>
-                  <th className="font-semibold px-5 py-3 text-right hidden sm:table-cell">Fecha</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recientes.map((t) => {
-                  const iGenero = generos.findIndex((g) => g.id === t.genero_id);
-                  return (
-                    <tr key={t.id} className="border-b border-border-soft last:border-b-0">
-                      <td className="px-5 py-3 min-w-0">
-                        <div className="font-semibold truncate max-w-[220px]">{t.titulo}</div>
-                        <div className="text-xs text-muted truncate max-w-[220px]">
-                          {t.remixer ?? t.artista_original ?? ""}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 hidden sm:table-cell">
-                        {t.generos?.nombre ? (
-                          <span
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-full ${badgeGenero(
-                              iGenero < 0 ? 0 : iGenero,
-                            )}`}
-                          >
-                            {t.generos.nombre}
-                          </span>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-3 text-right text-muted">{formatearBpm(t.bpm)}</td>
-                      <td className="px-3 py-3 hidden md:table-cell text-muted truncate max-w-[140px]">
-                        {t.perfiles?.nombre_dj || t.perfiles?.email || "—"}
-                      </td>
-                      <td className="px-5 py-3 text-right text-muted hidden sm:table-cell">
-                        {formatearFecha(t.fecha_subida)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          </CarruselHorizontal>
         </div>
       )}
 

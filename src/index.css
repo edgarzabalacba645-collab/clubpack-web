@@ -108,3 +108,17 @@
     color: var(--color-muted-3);
   }
 }
+
+@layer utilities {
+  /* Oculta la barra de scroll nativa (fea en casi todos los navegadores)
+     en un contenedor con overflow, sin desactivar el scroll en sí — se
+     usa en CarruselHorizontal.tsx, que la reemplaza por flechitas
+     flotantes. */
+  .scrollbar-hide {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* viejo Edge/IE */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Edge nuevo */
+  }
+}
