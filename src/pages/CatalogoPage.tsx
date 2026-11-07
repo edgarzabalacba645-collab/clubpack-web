@@ -748,11 +748,11 @@ export default function CatalogoPage() {
             <span className="w-9 shrink-0" aria-hidden="true" />
             <span className="w-9 shrink-0" aria-hidden="true" />
             <span className="min-w-[150px] flex-1">Tema</span>
-            <span className="w-28 shrink-0">Género</span>
-            <span className="w-16 shrink-0 text-right">BPM</span>
+            <span className="w-28 shrink-0 text-center">Género</span>
+            <span className="w-16 shrink-0 text-center">BPM</span>
             <span className="w-20 shrink-0 text-center">Tonalidad</span>
-            <span className="w-20 shrink-0 text-right">Duración</span>
-            <span className="w-56 shrink-0">Acciones</span>
+            <span className="w-20 shrink-0 text-center">Duración</span>
+            <span className="w-56 shrink-0 text-center">Acciones</span>
           </div>
         )}
 
@@ -813,7 +813,7 @@ export default function CatalogoPage() {
                   </div>
                 </div>
 
-                <div className="hidden sm:block w-28 shrink-0">
+                <div className="hidden sm:flex justify-center w-28 shrink-0">
                   {t.generos?.nombre ? (
                     <span
                       title={t.generos.nombre}
@@ -827,13 +827,13 @@ export default function CatalogoPage() {
                     <span className="text-xs text-muted">—</span>
                   )}
                 </div>
-                <div className="hidden sm:block text-xs text-muted w-16 shrink-0 text-right">
+                <div className="hidden sm:block text-xs text-muted w-16 shrink-0 text-center">
                   {formatearBpm(t.bpm)} bpm
                 </div>
                 <div className="hidden sm:block text-xs text-muted w-20 shrink-0 text-center">
                   {t.key_armonica ?? "—"}
                 </div>
-                <div className="hidden sm:block text-xs text-muted w-20 shrink-0 text-right">
+                <div className="hidden sm:block text-xs text-muted w-20 shrink-0 text-center">
                   {formatearDuracion(t.duracion_seg)}
                 </div>
 
@@ -845,7 +845,7 @@ export default function CatalogoPage() {
                     que es lo que los mantiene alineados. Ver el <span>
                     "Acciones" del encabezado, más arriba, con el mismo
                     w-56. */}
-                <div className="w-56 shrink-0 flex flex-wrap items-center gap-2">
+                <div className="w-56 shrink-0 flex flex-wrap items-center justify-center gap-2">
                   {puedeEditar && (
                     <button
                       type="button"
