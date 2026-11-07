@@ -3,6 +3,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { usePlayer } from "../lib/player";
 import { formatearDuracion } from "../lib/format";
+import { abrirDescargaDirecta, ApiError, obtenerUrlDescarga } from "../lib/api";
 import BotonTema from "./BotonTema";
 
 /** Lo que AppShell le pasa a sus páginas hijas via useOutletContext. */
@@ -177,6 +178,25 @@ function IconPauseMini() {
   );
 }
 
+/* Mismo ícono de "Bajar" que usa la columna Acciones del catálogo (ver
+   CatalogoPage) — se repite acá así el botón de descarga de la barra del
+   reproductor es visualmente el mismo gesto. */
+function IconDescargar() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 4v11.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M7.5 11.5 12 16l4.5-4.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M5 19.5h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /* Ícono de reproducción continua (dos flechas en loop) — el botón que lo
    usa cambia de color cuando está activo, no hace falta que el ícono en
    sí tenga dos variantes. */
@@ -213,6 +233,26 @@ function IconRepetir() {
 function BarraReproductor() {
   const { trackActual, estado, error, modoContinuo, toggleModoContinuo, contenedorRef, togglePlay, cerrar } =
     usePlayer();
+  const [descargando, setDescargando] = useState(false);
+  const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
+
+  // Bajar el tema que está sonando ahora mismo, sin tener que volver al
+  // catálogo a buscar su fila — pensado para cuando uno reconoce el tema
+  // al escucharlo pero no se acordaba del nombre.
+  async function descargarActual() {
+    if (!trackActual) return;
+    setDescargando(true);
+    setErrorDescarga(null);
+    try {
+      const { url } = await obtenerUrlDescarga(trackActual.id, true);
+      abrirDescargaDirecta(url);
+    } catch (e) {
+      setErrorDescarga(e instanceof ApiError ? e.message : "No se pudo descargar el track.");
+    } finally {
+      setDescargando(false);
+    }
+  }
+
   if (!trackActual) return null;
 
   const subtitulo = [
@@ -252,9 +292,23 @@ function BarraReproductor() {
         </span>
       )}
 
-      {error && (
-        <p className="hidden lg:block text-xs text-accent m-0 max-w-[220px] truncate shrink-0" title={error}>
-          {error}
+      <button
+        type="button"
+        onClick={descargarActual}
+        disabled={descargando}
+        aria-label={`Bajar ${trackActual.titulo}`}
+        title="Bajar"
+        className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink disabled:opacity-50"
+      >
+        {descargando ? <span className="text-xs">…</span> : <IconDescargar />}
+      </button>
+
+      {(errorDescarga || error) && (
+        <p
+          className="hidden lg:block text-xs text-accent m-0 max-w-[220px] truncate shrink-0"
+          title={errorDescarga ?? error ?? undefined}
+        >
+          {errorDescarga ?? error}
         </p>
       )}
 
