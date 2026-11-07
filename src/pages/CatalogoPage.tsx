@@ -468,13 +468,14 @@ export default function CatalogoPage() {
     <div className="flex flex-col gap-8">
       {/* Banner de bienvenida */}
       <div className="relative overflow-hidden rounded-2xl px-6 sm:px-9 py-9 sm:py-11 bg-ink">
-        {/* Modo claro: la foto es pálida de por sí — antes iba a opacity-50
-            sobre un fondo de contenedor oscuro (bg-ink) y encima un scrim
-            bien oscuro, lo que terminaba "ensuciando" su color original y
-            tapando bastante la foto. Ahora va a opacidad completa (se ve
-            el color real) con un scrim blanco mucho más suave, y el texto
-            pasa a oscuro (ver más abajo) porque sobre una foto clara el
-            texto blanco no se lee bien. */}
+        {/* Modo claro: la foto trae de fábrica un texto de relleno "fantasma"
+            incrustado (es un mockup, no una foto limpia) — con un scrim
+            débil ese texto se transparentaba detrás del título real y
+            quedaba doble. El scrim tiene que ser fuerte justo donde va el
+            texto (misma lógica que ya usa el modo oscuro, solo que acá en
+            blanco) para taparlo del todo, y mucho más suave hacia la
+            derecha, donde no hay texto y sí conviene que se note el color
+            original de la foto. */}
         <img
           src="/hero-light.jpg"
           alt=""
@@ -491,7 +492,7 @@ export default function CatalogoPage() {
           className="absolute inset-0 dark:hidden"
           style={{
             background:
-              "linear-gradient(100deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.32) 55%, rgba(255,255,255,0.05) 100%)",
+              "linear-gradient(100deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.78) 40%, rgba(255,255,255,0.4) 70%, rgba(255,255,255,0.1) 100%)",
           }}
         />
         {/* Modo oscuro: sin cambios. */}
