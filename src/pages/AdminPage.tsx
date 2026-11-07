@@ -1146,7 +1146,13 @@ function UsoTab() {
       </div>
 
       {balance.storage && (
-        <TarjetaUso etiqueta="Storage (todo lo guardado)" item={balance.storage} unidad="GB" decimales={2} />
+        <TarjetaUso
+          etiqueta="Storage (todo lo guardado)"
+          item={balance.storage}
+          unidad="GB"
+          decimales={2}
+          tarifaExcedente="USD 0,015 / GB excedente"
+        />
       )}
       {balance.operaciones_a && (
         <TarjetaUso
@@ -1154,6 +1160,7 @@ function UsoTab() {
           item={balance.operaciones_a}
           unidad="operaciones"
           decimales={0}
+          tarifaExcedente="USD 4,50 / millón excedente"
         />
       )}
       {balance.operaciones_b && (
@@ -1162,6 +1169,7 @@ function UsoTab() {
           item={balance.operaciones_b}
           unidad="operaciones"
           decimales={0}
+          tarifaExcedente="USD 0,36 / millón excedente"
         />
       )}
 
@@ -1179,11 +1187,14 @@ function TarjetaUso({
   item,
   unidad,
   decimales,
+  tarifaExcedente,
 }: {
   etiqueta: string;
   item: ItemUsoCloudflare;
   unidad: string;
   decimales: number;
+  /** Precio por unidad una vez agotado el límite gratis, ej. "USD 0,015 / GB excedente". */
+  tarifaExcedente: string;
 }) {
   const porcentaje = Math.max(0, item.porcentaje);
   const anchoBarra = Math.min(100, porcentaje);
@@ -1193,9 +1204,10 @@ function TarjetaUso({
     <div className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-2.5">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <span className="text-sm font-semibold">{etiqueta}</span>
-        <span className="text-xs text-muted">
+        <span className="text-xs text-muted text-right">
           {item.usado.toLocaleString("es-AR", { maximumFractionDigits: decimales })} / {" "}
           {item.limite_gratis.toLocaleString("es-AR")} {unidad} gratis
+          <span className="text-muted-2"> · {tarifaExcedente}</span>
         </span>
       </div>
 
