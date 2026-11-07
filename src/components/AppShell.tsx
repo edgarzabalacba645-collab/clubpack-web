@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { usePlayer } from "../lib/player";
+import { formatearDuracion } from "../lib/format";
 import BotonTema from "./BotonTema";
 
 /** Lo que AppShell le pasa a sus páginas hijas via useOutletContext. */
@@ -176,6 +177,32 @@ function IconPauseMini() {
   );
 }
 
+/* Ícono de reproducción continua (dos flechas en loop) — el botón que lo
+   usa cambia de color cuando está activo, no hace falta que el ícono en
+   sí tenga dos variantes. */
+function IconRepetir() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 7.5h11a4 4 0 0 1 4 4V13"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M8 4 4 7.5 8 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M20 16.5H9a4 4 0 0 1-4-4V11"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M16 20 20 16.5 16 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /*
  * Barra fija con el reproductor global (ver src/lib/player.tsx) — vive
  * acá, adentro de AppShell, que no se desmonta al navegar entre
@@ -184,16 +211,24 @@ function IconPauseMini() {
  * hay un track activo.
  */
 function BarraReproductor() {
-  const { trackActual, estado, error, contenedorRef, togglePlay, cerrar } = usePlayer();
+  const { trackActual, estado, error, modoContinuo, toggleModoContinuo, contenedorRef, togglePlay, cerrar } =
+    usePlayer();
   if (!trackActual) return null;
 
+  const subtitulo = [
+    trackActual.artista_original ? `Original: ${trackActual.artista_original}` : null,
+    trackActual.remixer ? `Remix: ${trackActual.remixer}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border-soft px-4 sm:px-6 py-2.5 flex items-center gap-3 sm:gap-4">
+    <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border-soft px-4 sm:px-6 py-2 flex items-center gap-3 sm:gap-4">
       <button
         type="button"
         onClick={togglePlay}
         aria-label={estado === "sonando" ? "Pausar" : "Reproducir"}
-        className="shrink-0 w-10 h-10 rounded-full bg-ink text-cream flex items-center justify-center appearance-none border-none cursor-pointer"
+        className="shrink-0 w-9 h-9 rounded-full bg-ink text-cream flex items-center justify-center appearance-none border-none cursor-pointer"
       >
         {estado === "cargando" ? (
           <span className="text-xs">…</span>
@@ -204,18 +239,37 @@ function BarraReproductor() {
         )}
       </button>
 
-      <div className="hidden sm:block w-40 shrink-0 min-w-0">
-        <div className="font-semibold text-sm truncate">{trackActual.titulo}</div>
-        {trackActual.remixer && <div className="text-xs text-muted truncate">Remix: {trackActual.remixer}</div>}
+      <div className="hidden sm:block w-44 shrink-0 min-w-0">
+        <div className="font-semibold text-sm truncate leading-tight">{trackActual.titulo}</div>
+        {subtitulo && <div className="text-xs text-muted truncate leading-tight">{subtitulo}</div>}
       </div>
 
       <div ref={contenedorRef} className="flex-1 min-w-0 cursor-pointer" />
+
+      {trackActual.duracion_seg != null && (
+        <span className="hidden sm:inline shrink-0 text-xs text-muted tabular-nums">
+          {formatearDuracion(trackActual.duracion_seg)}
+        </span>
+      )}
 
       {error && (
         <p className="hidden lg:block text-xs text-accent m-0 max-w-[220px] truncate shrink-0" title={error}>
           {error}
         </p>
       )}
+
+      <button
+        type="button"
+        onClick={toggleModoContinuo}
+        aria-pressed={modoContinuo}
+        aria-label={modoContinuo ? "Desactivar reproducción continua" : "Activar reproducción continua"}
+        title={modoContinuo ? "Reproducción continua: activada" : "Reproducción continua: desactivada"}
+        className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none border-none cursor-pointer transition-colors ${
+          modoContinuo ? "bg-accent/15 text-accent" : "bg-transparent text-muted hover:text-ink"
+        }`}
+      >
+        <IconRepetir />
+      </button>
 
       <button
         type="button"

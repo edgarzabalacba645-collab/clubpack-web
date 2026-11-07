@@ -254,7 +254,13 @@ export default function CatalogoPage() {
     });
   }
 
-  async function reproducir(track: TrackFila) {
+  // `filaEl`: el elemento de la fila/tarjeta que disparó esto — lo
+  // llevamos a la vista si la barra fija del reproductor (que recién
+  // aparece ahora) lo tapa parcialmente. `scroll-mb-*` en cada fila (ver
+  // más abajo) le dice al navegador cuánto margen dejar abajo.
+  async function reproducir(track: TrackFila, filaEl?: HTMLElement | null) {
+    filaEl?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
     if (player.trackActual?.id === track.id) {
       // ya está activo este track (sonando o en pausa) — solo togglear
       player.togglePlay();
@@ -265,7 +271,30 @@ export default function CatalogoPage() {
     setCargandoPreviewId(track.id);
     try {
       const { url } = await obtenerUrlDescarga(track.id, false);
-      player.reproducir({ id: track.id, titulo: track.titulo, remixer: track.remixer, url });
+      player.reproducir(
+        {
+          id: track.id,
+          titulo: track.titulo,
+          artista_original: track.artista_original,
+          remixer: track.remixer,
+          duracion_seg: track.duracion_seg,
+          url,
+        },
+        {
+          // La cola es el catálogo tal cual está filtrado en este momento
+          // (no solo la página actual) — en reproducción continua sigue
+          // uno detrás del otro por todo lo filtrado, no solo lo
+          // paginado en pantalla.
+          cola: tracks.map((t) => ({
+            id: t.id,
+            titulo: t.titulo,
+            artista_original: t.artista_original,
+            remixer: t.remixer,
+            duracion_seg: t.duracion_seg,
+          })),
+          resolverUrl: async (id) => (await obtenerUrlDescarga(id, false)).url,
+        },
+      );
     } catch (e) {
       setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo reproducir el preview.");
     } finally {
@@ -687,8 +716,8 @@ export default function CatalogoPage() {
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => reproducir(t)}
-                  className="group relative shrink-0 w-44 text-left appearance-none bg-transparent border-none cursor-pointer p-0"
+                  onClick={(e) => reproducir(t, e.currentTarget)}
+                  className="group relative shrink-0 w-44 text-left appearance-none bg-transparent border-none cursor-pointer p-0 scroll-mb-20"
                 >
                   <div className="relative w-44 h-44 rounded-2xl overflow-hidden border border-border-soft">
                     <Portada path={t.portada_url} alt="" className="w-full h-full object-cover" />
@@ -767,7 +796,8 @@ export default function CatalogoPage() {
           return (
             <div
               key={t.id}
-              className={`flex flex-col border-b border-border-soft last:border-b-0 ${seleccionado ? "bg-cream" : ""}`}
+              data-fila-track
+              className={`flex flex-col border-b border-border-soft last:border-b-0 scroll-mb-20 ${seleccionado ? "bg-cream" : ""}`}
             >
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3.5">
                 <input
@@ -780,7 +810,7 @@ export default function CatalogoPage() {
 
                 <button
                   type="button"
-                  onClick={() => reproducir(t)}
+                  onClick={(e) => reproducir(t, e.currentTarget.closest<HTMLElement>("[data-fila-track]"))}
                   aria-label={esElSonando && player.estado === "sonando" ? "Pausar" : "Reproducir preview"}
                   className="shrink-0 w-9 h-9 rounded-full bg-ink text-cream flex items-center justify-center appearance-none border-none cursor-pointer"
                 >
