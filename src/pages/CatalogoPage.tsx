@@ -55,6 +55,61 @@ function badgeGenero(i: number) {
   return BADGES_GENERO[i % BADGES_GENERO.length];
 }
 
+/* Íconos de la columna "Acciones" — antes eran botones de texto
+   (Editar/Bajar/Borrar), ahora solo el ícono + aria-label/title para
+   que siga siendo accesible y quede claro al pasar el mouse. */
+function IconoEditar() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 20h4L19.5 8.5a2.121 2.121 0 0 0-3-3L5 17v3Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M14.2 6.8 17.2 9.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconoBajar() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 4v11.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M7.5 11.5 12 16l4.5-4.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M5 19.5h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconoBorrar() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4.5 7h15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 7l0.9 12.1a1 1 0 0 0 1 .9h6.2a1 1 0 0 0 1-.9L17 7"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M10 10.5v6M14 10.5v6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function CatalogoPage() {
   const { session, perfil } = useAuth();
   const player = usePlayer();
@@ -382,15 +437,49 @@ export default function CatalogoPage() {
     paginaSegura * PAGINA_TAMANO,
   );
 
+  // Mismos controles arriba y abajo de la lista — en un catálogo largo
+  // (5+ páginas) volver a bajar hasta el pie solo para pasar de página
+  // es incómodo.
+  const controlesPaginacion = totalPaginas > 1 && (
+    <div className="flex items-center justify-center gap-3">
+      <button
+        type="button"
+        onClick={() => setPagina((p) => Math.max(1, p - 1))}
+        disabled={paginaSegura <= 1}
+        className="text-sm font-semibold px-4 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-40 disabled:cursor-default"
+      >
+        Anterior
+      </button>
+      <span className="text-sm text-muted">
+        Página {paginaSegura} de {totalPaginas}
+      </span>
+      <button
+        type="button"
+        onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+        disabled={paginaSegura >= totalPaginas}
+        className="text-sm font-semibold px-4 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-40 disabled:cursor-default"
+      >
+        Siguiente
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-8">
       {/* Banner de bienvenida */}
       <div className="relative overflow-hidden rounded-2xl px-6 sm:px-9 py-9 sm:py-11 bg-ink">
+        {/* Modo claro: la foto es pálida de por sí — antes iba a opacity-50
+            sobre un fondo de contenedor oscuro (bg-ink) y encima un scrim
+            bien oscuro, lo que terminaba "ensuciando" su color original y
+            tapando bastante la foto. Ahora va a opacidad completa (se ve
+            el color real) con un scrim blanco mucho más suave, y el texto
+            pasa a oscuro (ver más abajo) porque sobre una foto clara el
+            texto blanco no se lee bien. */}
         <img
           src="/hero-light.jpg"
           alt=""
           aria-hidden="true"
-          className="absolute inset-0 w-full h-full object-cover opacity-50 dark:hidden"
+          className="absolute inset-0 w-full h-full object-cover dark:hidden"
         />
         <img
           src="/hero-dark.jpg"
@@ -399,17 +488,25 @@ export default function CatalogoPage() {
           className="absolute inset-0 w-full h-full object-cover opacity-60 hidden dark:block"
         />
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 dark:hidden"
+          style={{
+            background:
+              "linear-gradient(100deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.32) 55%, rgba(255,255,255,0.05) 100%)",
+          }}
+        />
+        {/* Modo oscuro: sin cambios. */}
+        <div
+          className="absolute inset-0 hidden dark:block"
           style={{
             background:
               "linear-gradient(100deg, rgba(10,10,20,0.88) 0%, rgba(10,10,20,0.6) 55%, rgba(10,10,20,0.25) 100%)",
           }}
         />
         <div className="relative max-w-xl">
-          <h1 className="font-display font-extrabold text-[clamp(1.6rem,3.5vw,2.4rem)] leading-[1.08] tracking-[-0.5px] m-0 text-white">
+          <h1 className="font-display font-extrabold text-[clamp(1.6rem,3.5vw,2.4rem)] leading-[1.08] tracking-[-0.5px] m-0 text-ink dark:text-white">
             El catálogo colaborativo de música para DJs
           </h1>
-          <p className="mt-3 text-white/75 text-sm sm:text-base m-0">
+          <p className="mt-3 text-ink/75 dark:text-white/75 text-sm sm:text-base m-0">
             {cargando
               ? "Cargando…"
               : `Descubrí, escuchá y descargá los ${tracks.length} track${tracks.length === 1 ? "" : "s"} que compartió el grupo.`}
@@ -627,6 +724,7 @@ export default function CatalogoPage() {
       {/* Lista completa */}
       <div className="flex flex-col gap-3.5">
         {mostrarDescubrimiento && <h2 className="font-display font-bold text-lg m-0">Catálogo completo</h2>}
+        {controlesPaginacion}
         <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
         {!cargando && tracks.length === 0 && (
           <div className="p-8 text-center text-muted text-sm">
@@ -752,9 +850,10 @@ export default function CatalogoPage() {
                       type="button"
                       onClick={() => abrirEdicion(t)}
                       aria-label={`Editar ${t.titulo}`}
-                      className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer"
+                      title="Editar"
+                      className="shrink-0 p-2 flex items-center justify-center rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer"
                     >
-                      Editar
+                      <IconoEditar />
                     </button>
                   )}
 
@@ -762,9 +861,11 @@ export default function CatalogoPage() {
                     type="button"
                     onClick={() => descargarIndividual(t)}
                     disabled={descargando === t.id}
-                    className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-50"
+                    aria-label={`Bajar ${t.titulo}`}
+                    title="Bajar"
+                    className="shrink-0 p-2 flex items-center justify-center rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-50"
                   >
-                    {descargando === t.id ? "…" : "Bajar"}
+                    {descargando === t.id ? <span className="text-xs px-0.5">…</span> : <IconoBajar />}
                   </button>
 
                   {esAdmin && confirmandoBorrarId !== t.id && (
@@ -772,9 +873,10 @@ export default function CatalogoPage() {
                       type="button"
                       onClick={() => setConfirmandoBorrarId(t.id)}
                       aria-label={`Borrar ${t.titulo}`}
-                      className="shrink-0 text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-accent hover:text-accent transition-colors appearance-none bg-transparent cursor-pointer"
+                      title="Borrar"
+                      className="shrink-0 p-2 flex items-center justify-center rounded-lg border border-border hover:border-accent hover:text-accent transition-colors appearance-none bg-transparent cursor-pointer"
                     >
-                      Borrar
+                      <IconoBorrar />
                     </button>
                   )}
                   {esAdmin && confirmandoBorrarId === t.id && (
@@ -805,29 +907,7 @@ export default function CatalogoPage() {
         })}
         </div>
 
-        {totalPaginas > 1 && (
-          <div className="flex items-center justify-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={() => setPagina((p) => Math.max(1, p - 1))}
-              disabled={paginaSegura <= 1}
-              className="text-sm font-semibold px-4 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-40 disabled:cursor-default"
-            >
-              Anterior
-            </button>
-            <span className="text-sm text-muted">
-              Página {paginaSegura} de {totalPaginas}
-            </span>
-            <button
-              type="button"
-              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
-              disabled={paginaSegura >= totalPaginas}
-              className="text-sm font-semibold px-4 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-40 disabled:cursor-default"
-            >
-              Siguiente
-            </button>
-          </div>
-        )}
+        {controlesPaginacion}
       </div>
 
       {/* Barra de selección */}
