@@ -93,6 +93,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // siempre — closure obsoleta).
   const trackActualIdRef = useRef<string | null>(null);
   trackActualIdRef.current = trackActual?.id ?? null;
+  // URL del PRÓXIMO tema de la cola, pedida de antemano (ver el effect más
+  // abajo) — para que al terminar un tema no haya que esperar un fetch de
+  // red justo en ese instante. Con la pantalla bloqueada, ese hueco async
+  // cae justo en el momento en que el celular puede llegar a congelar la
+  // pestaña en segundo plano antes de que termine — precargar la URL
+  // mientras el tema actual todavía suena achica ese hueco a (casi) cero.
+  const proximaUrlRef = useRef<{ id: string; url: string } | null>(null);
 
   // Busca el siguiente track de la cola después de `actualId` y, si hay
   // uno y tenemos cómo pedir su URL, pasa a reproducirlo — si no, se
@@ -108,13 +115,40 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
     try {
       setEstado("cargando");
-      const url = await resolver(siguiente.id);
+      const precargada = proximaUrlRef.current;
+      const url =
+        precargada && precargada.id === siguiente.id ? precargada.url : await resolver(siguiente.id);
       setTrackActual({ ...siguiente, url });
     } catch {
       setError("No se pudo reproducir el siguiente tema.");
       setTrackActual(null);
     }
   }, []);
+
+  // Precarga la URL del tema que sigue apenas arranca el actual (no hace
+  // falta esperar a que termine) — así ya está lista cuando "finish" la
+  // necesita. Si falla (red, token vencido, etc.) no pasa nada: queda
+  // null y avanzarSiguiente la pide de nuevo en el momento, como antes.
+  useEffect(() => {
+    if (!trackActual || !modoContinuo) return;
+    const cola = colaRef.current;
+    const idx = cola.findIndex((t) => t.id === trackActual.id);
+    const siguiente = idx >= 0 ? cola[idx + 1] : undefined;
+    const resolver = resolverUrlRef.current;
+    if (!siguiente || !resolver) return;
+    let cancelado = false;
+    resolver(siguiente.id)
+      .then((url) => {
+        if (!cancelado) proximaUrlRef.current = { id: siguiente.id, url };
+      })
+      .catch(() => {
+        /* no pasa nada, se vuelve a intentar al llegar el momento */
+      });
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackActual?.id, modoContinuo]);
 
   useEffect(() => {
     if (!trackActual || !contenedorElRef.current) return;
