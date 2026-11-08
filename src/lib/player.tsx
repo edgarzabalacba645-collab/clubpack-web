@@ -335,9 +335,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.playbackState =
-      estado === "sonando" ? "playing" : estado === "pausado" ? "paused" : "none";
-  }, [estado]);
+    if (!trackActual) {
+      navigator.mediaSession.playbackState = "none";
+      return;
+    }
+    // "cargando" (el hueco entre que termina un tema y arranca el
+    // siguiente, en reproducción continua) ANTES cafa acá en "none" —
+    // que para el sistema operativo significa "no hay ninguna sesión de
+    // reproducción activa". Con eso, cada transición entre temas podía
+    // leerse como que la sesión TERMINÓ, y después de unos pocos ciclos
+    // así Android dejaba de mostrar la notificación/controles de la
+    // pantalla de bloqueo (lo que reportó Edgar: a partir del 3er tema
+    // ya no aparecía más, aunque el audio seguía sonando bien). Mientras
+    // haya un trackActual puesto, para el sistema esto sigue siendo una
+    // sesión activa — "cargando" cuenta como "playing", nunca "none".
+    navigator.mediaSession.playbackState = estado === "pausado" ? "paused" : "playing";
+  }, [estado, trackActual]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
