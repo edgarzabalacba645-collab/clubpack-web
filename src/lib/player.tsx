@@ -139,7 +139,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     let cancelado = false;
     resolver(siguiente.id)
       .then((url) => {
-        if (!cancelado) proximaUrlRef.current = { id: siguiente.id, url };
+        if (cancelado) return;
+        proximaUrlRef.current = { id: siguiente.id, url };
+        // No alcanza con tener la URL lista: si el archivo de audio en sí
+        // recién se empieza a bajar cuando termina el tema actual, esa
+        // descarga cae justo en el momento más delicado (pantalla recién
+        // bloqueada). Bajándolo ahora, con el tema actual todavía sonando
+        // (la pestaña sigue "activa" de verdad para el navegador por el
+        // audio en curso), queda en la caché HTTP del navegador y
+        // ws.load() lo sirve de ahí en vez de pedirlo de nuevo a R2.
+        fetch(url)
+          .then((r) => r.blob())
+          .catch(() => {
+            /* si falla la precarga de bytes no pasa nada, ws.load() la vuelve a pedir */
+          });
       })
       .catch(() => {
         /* no pasa nada, se vuelve a intentar al llegar el momento */
