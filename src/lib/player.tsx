@@ -197,7 +197,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       });
       wsRef.current = ws;
 
-      ws.on("ready", () => {
+      ws.on("ready", (duracion) => {
+        // setPositionState: lo que le falta a la sesión para que el
+        // sistema (pantalla de bloqueo, auriculares, etc.) la trate como
+        // una reproducción "completa" de verdad, con posición y duración
+        // reales en vez de quedarse en 00:00/00:00 — además de prolijo,
+        // es parte de lo que un sistema operativo mira para decidir si
+        // una sesión en segundo plano es legítima o no.
+        if ("mediaSession" in navigator && "setPositionState" in navigator.mediaSession) {
+          try {
+            navigator.mediaSession.setPositionState({ duration: duracion, position: 0 });
+          } catch {
+            /* algunos navegadores tiran si duration es 0/NaN — no pasa nada */
+          }
+        }
         // Por si el navegador igual lo bloquea en algún caso raro (pestaña
         // en segundo plano, modo ahorro de datos, etc.) — así no se queda
         // colgado en "cargando" para siempre sin avisar nada.
@@ -207,7 +220,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         });
       });
       ws.on("play", () => setEstado("sonando"));
-      ws.on("pause", () => setEstado("pausado"));
+      ws.on("timeupdate", (posicion) => {
+        if ("mediaSession" in navigator && "setPositionState" in navigator.mediaSession) {
+          try {
+            navigator.mediaSession.setPositionState({ duration: ws!.getDuration(), position: posicion });
+          } catch {
+            /* ídem arriba */
+          }
+        }
+      });
+      ws.on("pause", () => {
+        // Puede ser porque tocamos pausa nosotros, pero en el celular
+        // también puede ser el navegador/sistema pausando por su cuenta
+        // una reproducción que arrancó sola (sin un toque) estando en
+        // segundo plano — distinguirlo bien necesitaría poder ver la
+        // consola del celular, así que por ahora al menos se avisa.
+        if (modoContinuoRef.current && document.visibilityState === "hidden") {
+          setError("El navegador pausó la reproducción en segundo plano.");
+        }
+        setEstado("pausado");
+      });
       ws.on("finish", () => {
         const actualId = trackActualIdRef.current;
         if (modoContinuoRef.current && actualId) {
