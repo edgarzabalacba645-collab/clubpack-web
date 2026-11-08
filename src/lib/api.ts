@@ -125,9 +125,16 @@ export function confirmarSubida(body: ConfirmarSubidaBody) {
 }
 
 export function obtenerUrlDescarga(trackId: string, registrar = true) {
-  return apiFetchJson<{ url: string; expira_seg: number }>(
-    `/tracks/${trackId}/download-url?registrar=${registrar}`,
-  );
+  return apiFetchJson<{
+    url: string;
+    expira_seg: number;
+    duracion_seg: number | null;
+    // Envolvente de volumen precalculada (ver audio.py::calcular_peaks en
+    // el backend) — null si este track todavía no la tiene (temas viejos
+    // sin backfill todavía). El player la usa para arrancar rápido; si
+    // falta, simplemente tarda lo de siempre para ESE tema puntual.
+    peaks: number[] | null;
+  }>(`/tracks/${trackId}/download-url?registrar=${registrar}`);
 }
 
 export interface ArchivoDescarga {
@@ -189,6 +196,24 @@ export function avisarPagoManual(comentario: string | null) {
 
 export function borrarTrackAdmin(trackId: string) {
   return apiFetchJson<{ ok: boolean }>(`/tracks/${trackId}`, { method: "DELETE" });
+}
+
+// ---- Admin: backfill de peaks de waveform para temas subidos antes de
+// que existiera este cálculo (ver audio.py::calcular_peaks). Los temas
+// nuevos ya lo calculan solos en /tracks/confirm — esto es solo para
+// vaciar la lista de pendientes una vez. ----
+
+export interface TrackPendientePeaks {
+  id: string;
+  titulo: string;
+}
+
+export function listarPendientesPeaks() {
+  return apiFetchJson<{ tracks: TrackPendientePeaks[] }>("/tracks/admin/pendientes-peaks");
+}
+
+export function calcularPeaksTrack(trackId: string) {
+  return apiFetchJson(`/tracks/${trackId}/calcular-peaks`, { method: "POST" });
 }
 
 // ---- Imágenes: portadas de track + herramientas DJ (R2, por eso pasan por la API) ----

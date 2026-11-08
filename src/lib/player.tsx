@@ -22,8 +22,22 @@ export interface TrackCola {
   duracion_seg: number | null;
 }
 
+/** Lo que hace falta para reproducir un track puntual: la URL firmada
+ * más, si ya se calcularon (ver audio.py::calcular_peaks en el backend),
+ * la envolvente de volumen y la duración real — con esas dos, wavesurfer
+ * puede dibujar la onda y arrancar en streaming nativo SIN tener que
+ * bajar y decodificar el archivo entero primero. Si peaks viene null
+ * (temas viejos todavía sin backfill), el player simplemente tarda lo de
+ * siempre para ESE tema puntual — no rompe nada. */
+export interface ResolucionTrack {
+  url: string;
+  duracion_seg?: number | null;
+  peaks?: number[] | null;
+}
+
 export interface TrackReproduccion extends TrackCola {
   url: string;
+  peaks?: number[] | null;
 }
 
 export type EstadoReproduccion = "cargando" | "sonando" | "pausado";
@@ -34,10 +48,11 @@ interface ReproducirOpciones {
    * sigue cuando está activa la reproducción continua. Si no se pasa,
    * sigue valiendo la cola que ya hubiera. */
   cola?: TrackCola[];
-  /** Cómo conseguir la URL firmada de cualquier track de la cola, dado
-   * su id — el reproductor la necesita para avanzar solo al siguiente
-   * tema sin que la pantalla que lo inició sea quien lo pida. */
-  resolverUrl?: (id: string) => Promise<string>;
+  /** Cómo conseguir la URL firmada (+ peaks/duración si ya existen) de
+   * cualquier track de la cola, dado su id — el reproductor la necesita
+   * para avanzar solo al siguiente tema sin que la pantalla que lo inició
+   * sea quien lo pida. */
+  resolverUrl?: (id: string) => Promise<ResolucionTrack>;
 }
 
 interface PlayerContextValue {
@@ -84,7 +99,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // nunca debería disparar un re-render por sí solo, solo importan en el
   // momento de avanzar al siguiente tema.
   const colaRef = useRef<TrackCola[]>([]);
-  const resolverUrlRef = useRef<((id: string) => Promise<string>) | null>(null);
+  const resolverUrlRef = useRef<((id: string) => Promise<ResolucionTrack>) | null>(null);
   const modoContinuoRef = useRef(modoContinuo);
   modoContinuoRef.current = modoContinuo;
   // El id del track actual, en un ref aparte: lo necesita el handler de
@@ -99,7 +114,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // cae justo en el momento en que el celular puede llegar a congelar la
   // pestaña en segundo plano antes de que termine — precargar la URL
   // mientras el tema actual todavía suena achica ese hueco a (casi) cero.
-  const proximaUrlRef = useRef<{ id: string; url: string } | null>(null);
+  const proximaUrlRef = useRef<({ id: string } & ResolucionTrack) | null>(null);
 
   // Busca el siguiente track de la cola después de `actualId` y, si hay
   // uno y tenemos cómo pedir su URL, pasa a reproducirlo — si no, se
@@ -116,9 +131,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     try {
       setEstado("cargando");
       const precargada = proximaUrlRef.current;
-      const url =
-        precargada && precargada.id === siguiente.id ? precargada.url : await resolver(siguiente.id);
-      setTrackActual({ ...siguiente, url });
+      const resuelto =
+        precargada && precargada.id === siguiente.id ? precargada : await resolver(siguiente.id);
+      setTrackActual({ ...siguiente, url: resuelto.url, peaks: resuelto.peaks ?? null });
     } catch {
       setError("No se pudo reproducir el siguiente tema.");
       setTrackActual(null);
@@ -138,8 +153,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!siguiente || !resolver) return;
     let cancelado = false;
     resolver(siguiente.id)
-      .then((url) => {
-        if (!cancelado) proximaUrlRef.current = { id: siguiente.id, url };
+      .then((resuelto) => {
+        if (!cancelado) proximaUrlRef.current = { id: siguiente.id, ...resuelto };
         // OJO: acá antes también se disparaba un fetch() aparte para bajar
         // el archivo de audio completo de antemano. Se sacó: wavesurfer YA
         // baja el archivo entero por su cuenta en cada ws.load() (lo
@@ -254,7 +269,19 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       });
     }
 
-    ws.load(trackActual.url);
+    // Pasarle peaks + duración ya calculados (ver audio.py::calcular_peaks)
+    // hace que wavesurfer se salte su descarga+decodificación completa del
+    // archivo (lo que hace por su cuenta si no le pasamos esto — necesita
+    // esos datos para poder dibujar la onda) y use streaming nativo en su
+    // lugar: la onda aparece al toque y el audio arranca mucho más rápido,
+    // sobre todo con señal floja. Si el track todavía no tiene peaks
+    // (temas viejos sin backfill), quedan undefined y wavesurfer hace lo
+    // de siempre para ESE tema puntual — no se rompe nada.
+    // wavesurfer espera un array POR CANAL (aunque sea uno solo) — el
+    // backend manda un solo array plano (mono, alcanza para dibujar la
+    // onda), así que se envuelve acá en un array de un solo canal.
+    const channelData = trackActual.peaks ? [trackActual.peaks] : undefined;
+    ws.load(trackActual.url, channelData, trackActual.duracion_seg ?? undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackActual?.id, trackActual?.url]);
 

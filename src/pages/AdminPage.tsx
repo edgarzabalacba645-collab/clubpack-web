@@ -4,14 +4,17 @@ import { supabase } from "../lib/supabase";
 import {
   ApiError,
   borrarTrackAdmin,
+  calcularPeaksTrack,
   escanearDuplicados,
   listarDuplicadosPendientes,
+  listarPendientesPeaks,
   marcarDuplicado,
   obtenerBalanceCloudflare,
   subirImagenHerramienta,
   type BalanceCloudflare,
   type DuplicadoPendiente,
   type ItemUsoCloudflare,
+  type TrackPendientePeaks,
 } from "../lib/api";
 import { formatearBpm, formatearFecha, formatearMonto, mensajeErrorAmigable } from "../lib/format";
 import type {
@@ -749,23 +752,119 @@ function CatalogoCompletoTab() {
   if (error) return <p className="text-sm text-accent font-medium m-0">{error}</p>;
 
   return (
-    <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
-      {tracks.map((t) => (
-        <div key={t.id} className="flex items-center gap-4 px-5 py-3 border-b border-border-soft last:border-b-0">
-          <div className="min-w-0 flex-1">
-            <div className="font-semibold text-sm truncate">{t.titulo}</div>
-            <div className="text-xs text-muted truncate">{t.remixer || "—"}</div>
+    <div className="flex flex-col gap-4">
+      <PeaksPendientesPanel />
+      <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
+        {tracks.map((t) => (
+          <div key={t.id} className="flex items-center gap-4 px-5 py-3 border-b border-border-soft last:border-b-0">
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-sm truncate">{t.titulo}</div>
+              <div className="text-xs text-muted truncate">{t.remixer || "—"}</div>
+            </div>
+            <div className="hidden sm:block text-xs text-muted w-24 shrink-0">{t.genero || "—"}</div>
+            <div className="hidden sm:block text-xs text-muted w-16 shrink-0 text-right">
+              {formatearBpm(t.bpm)} bpm
+            </div>
+            <EstadoBadge estado={t.estado} />
+            <div className="hidden sm:block text-xs text-muted w-24 shrink-0 text-right">
+              {formatearFecha(t.fecha_subida)}
+            </div>
           </div>
-          <div className="hidden sm:block text-xs text-muted w-24 shrink-0">{t.genero || "—"}</div>
-          <div className="hidden sm:block text-xs text-muted w-16 shrink-0 text-right">
-            {formatearBpm(t.bpm)} bpm
-          </div>
-          <EstadoBadge estado={t.estado} />
-          <div className="hidden sm:block text-xs text-muted w-24 shrink-0 text-right">
-            {formatearFecha(t.fecha_subida)}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Backfill de peaks de waveform (ver audio.py::calcular_peaks) para los
+// temas que ya estaban en el catálogo antes de que existiera este
+// cálculo. Procesa de a UNO (no en paralelo): cada cálculo corre ffmpeg
+// en el backend, y el plan gratis de Render tiene poca memoria — varios
+// a la vez competirían entre sí (mismo motivo que en otras partes del
+// backend, ver app/audio.py).
+function PeaksPendientesPanel() {
+  const [pendientes, setPendientes] = useState<TrackPendientePeaks[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [procesando, setProcesando] = useState(false);
+  const [progreso, setProgreso] = useState<{ hechos: number; total: number } | null>(null);
+  const [fallidos, setFallidos] = useState<TrackPendientePeaks[]>([]);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    setError(null);
+    try {
+      const { tracks } = await listarPendientesPeaks();
+      setPendientes(tracks);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function handleCalcular() {
+    setProcesando(true);
+    setError(null);
+    const fallidosAhora: TrackPendientePeaks[] = [];
+    const total = pendientes.length;
+    for (let i = 0; i < total; i++) {
+      const track = pendientes[i];
+      setProgreso({ hechos: i, total });
+      try {
+        await calcularPeaksTrack(track.id);
+      } catch (e) {
+        fallidosAhora.push(track);
+        console.error(`No se pudo calcular peaks de "${track.titulo}" (${track.id}):`, e);
+      }
+    }
+    setProgreso({ hechos: total, total });
+    setFallidos(fallidosAhora);
+    setProcesando(false);
+    await cargar();
+  }
+
+  if (cargando) return <p className="text-sm text-muted m-0">Revisando temas pendientes de onda rápida…</p>;
+
+  // Ya está todo al día: no vale la pena ocupar lugar en pantalla con un
+  // panel vacío para esto el resto del tiempo.
+  if (!cargando && pendientes.length === 0 && !progreso) return null;
+
+  return (
+    <div className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-3">
+      <div>
+        <p className="font-semibold text-sm m-0">Arranque rápido del player (peaks de waveform)</p>
+        <p className="text-sm text-muted m-0">
+          Temas subidos antes de este cambio que todavía no tienen la onda precalculada — sin eso,
+          tardan más en arrancar a sonar. Los temas nuevos ya la calculan solos al subirlos.
+        </p>
+      </div>
+
+      {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
+
+      {pendientes.length > 0 && (
+        <button
+          type="button"
+          onClick={handleCalcular}
+          disabled={procesando}
+          className="self-start text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
+        >
+          {procesando
+            ? `Calculando… ${progreso?.hechos ?? 0}/${progreso?.total ?? pendientes.length}`
+            : `⚡ Calcular peaks pendientes (${pendientes.length})`}
+        </button>
+      )}
+
+      {!procesando && progreso && (
+        <p className="text-sm text-muted m-0">
+          Listo: {progreso.hechos - fallidos.length} de {progreso.total} calculados.
+          {fallidos.length > 0 && ` ${fallidos.length} fallaron (${fallidos.map((f) => f.titulo).join(", ")}).`}
+        </p>
+      )}
     </div>
   );
 }

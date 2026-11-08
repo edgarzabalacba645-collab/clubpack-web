@@ -270,15 +270,16 @@ export default function CatalogoPage() {
     setAvisoAccion(null);
     setCargandoPreviewId(track.id);
     try {
-      const { url } = await obtenerUrlDescarga(track.id, false);
+      const { url, duracion_seg, peaks } = await obtenerUrlDescarga(track.id, false);
       player.reproducir(
         {
           id: track.id,
           titulo: track.titulo,
           artista_original: track.artista_original,
           remixer: track.remixer,
-          duracion_seg: track.duracion_seg,
+          duracion_seg: duracion_seg ?? track.duracion_seg,
           url,
+          peaks,
         },
         {
           // La cola es el catálogo tal cual está filtrado en este momento
@@ -292,7 +293,10 @@ export default function CatalogoPage() {
             remixer: t.remixer,
             duracion_seg: t.duracion_seg,
           })),
-          resolverUrl: async (id) => (await obtenerUrlDescarga(id, false)).url,
+          resolverUrl: async (id) => {
+            const r = await obtenerUrlDescarga(id, false);
+            return { url: r.url, duracion_seg: r.duracion_seg, peaks: r.peaks };
+          },
         },
       );
     } catch (e) {
