@@ -810,22 +810,50 @@ function PeaksPendientesPanel() {
   async function handleCalcular() {
     setProcesando(true);
     setError(null);
-    const fallidosAhora: TrackPendientePeaks[] = [];
-    const total = pendientes.length;
-    for (let i = 0; i < total; i++) {
-      const track = pendientes[i];
-      setProgreso({ hechos: i, total });
-      try {
-        await calcularPeaksTrack(track.id);
-      } catch (e) {
-        fallidosAhora.push(track);
-        console.error(`No se pudo calcular peaks de "${track.titulo}" (${track.id}):`, e);
+    setFallidos([]);
+    try {
+      // Pide la lista de pendientes DE NUEVO acá (no la que ya tenía la
+      // pantalla, que puede estar vieja) — así, si esto se corta a mitad
+      // de camino y después se vuelve a apretar el botón (con o sin
+      // recargar la página antes), siempre arranca de los que todavía
+      // faltan: nunca reprocesa uno que ya quedó con la onda calculada.
+      const { tracks: actuales } = await listarPendientesPeaks();
+      const fallidosAhora: TrackPendientePeaks[] = [];
+      let fallosSeguidos = 0;
+      let hechos = 0;
+      const total = actuales.length;
+      for (hechos = 0; hechos < total; hechos++) {
+        const track = actuales[hechos];
+        setProgreso({ hechos, total });
+        try {
+          await calcularPeaksTrack(track.id);
+          fallosSeguidos = 0;
+        } catch (e) {
+          fallidosAhora.push(track);
+          fallosSeguidos++;
+          console.error(`No se pudo calcular peaks de "${track.titulo}" (${track.id}):`, e);
+          // 5 fallos seguidos probablemente es el servidor caído o
+          // reiniciándose, no temas puntuales con problemas — mejor
+          // cortar acá con un aviso claro que seguir machacando pedidos
+          // que van a seguir fallando igual.
+          if (fallosSeguidos >= 5) {
+            setError(
+              "Se cortó después de 5 fallos seguidos (puede que el servidor esté reiniciándose) — " +
+                "esperá un poco y volvé a apretar el botón, retoma de donde quedó.",
+            );
+            hechos++;
+            break;
+          }
+        }
       }
+      setProgreso({ hechos, total });
+      setFallidos(fallidosAhora);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setProcesando(false);
+      await cargar();
     }
-    setProgreso({ hechos: total, total });
-    setFallidos(fallidosAhora);
-    setProcesando(false);
-    await cargar();
   }
 
   if (cargando) return <p className="text-sm text-muted m-0">Revisando temas pendientes de onda rápida…</p>;
