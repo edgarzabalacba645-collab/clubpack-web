@@ -198,6 +198,48 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Media Session: sin esto, el navegador no tiene forma de saber que esta
+  // pestaña está reproduciendo audio "de verdad" cuando la pantalla está
+  // bloqueada o el celular pasó a otra app — y en ese estado, Chrome/Safari
+  // bloquean el play() automático del siguiente tema de la cola (aunque sea
+  // el mismo <audio> de siempre, ver el fix de arriba). Declarar la
+  // metadata y los controles acá es lo que hace que el sistema operativo
+  // trate esto como una sesión de reproducción legítima en segundo plano
+  // (y de paso aparecen los controles en la pantalla de bloqueo).
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    if (!trackActual) {
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: trackActual.titulo,
+      artist: trackActual.remixer ?? trackActual.artista_original ?? "ClubPack",
+      album: "ClubPack",
+    });
+  }, [trackActual]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState =
+      estado === "sonando" ? "playing" : estado === "pausado" ? "paused" : "none";
+  }, [estado]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.setActionHandler("play", () => wsRef.current?.play());
+    navigator.mediaSession.setActionHandler("pause", () => wsRef.current?.pause());
+    navigator.mediaSession.setActionHandler("nexttrack", () => {
+      const actualId = trackActualIdRef.current;
+      if (actualId) void avanzarSiguiente(actualId);
+    });
+    return () => {
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+      navigator.mediaSession.setActionHandler("nexttrack", null);
+    };
+  }, [avanzarSiguiente]);
+
   // Red de seguridad para cuando el provider en sí se desmonta (en la práctica
   // casi nunca, vive en la raíz de la app) — evita dejar un <audio> colgado.
   useEffect(() => {
