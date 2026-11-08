@@ -789,6 +789,9 @@ function PeaksPendientesPanel() {
   const [procesando, setProcesando] = useState(false);
   const [progreso, setProgreso] = useState<{ hechos: number; total: number } | null>(null);
   const [fallidos, setFallidos] = useState<TrackPendientePeaks[]>([]);
+  // Texto crudo del último fallo puntual — se muestra en pantalla para
+  // poder diagnosticar sin tener que abrir la consola del navegador.
+  const [ultimoErrorDetalle, setUltimoErrorDetalle] = useState<string | null>(null);
 
   useEffect(() => {
     cargar();
@@ -811,6 +814,7 @@ function PeaksPendientesPanel() {
     setProcesando(true);
     setError(null);
     setFallidos([]);
+    setUltimoErrorDetalle(null);
     try {
       // Pide la lista de pendientes DE NUEVO acá (no la que ya tenía la
       // pantalla, que puede estar vieja) — así, si esto se corta a mitad
@@ -825,12 +829,19 @@ function PeaksPendientesPanel() {
       for (hechos = 0; hechos < total; hechos++) {
         const track = actuales[hechos];
         setProgreso({ hechos, total });
+        // Pausa chica entre uno y otro — por las dudas sea algún límite
+        // de ritmo (R2, Supabase) lo que cortó el lote anterior a los 50;
+        // de paso le da margen a Render para no quedar siempre al límite
+        // de CPU/memoria del plan gratis con ffmpeg corriendo seguido.
+        if (hechos > 0) await new Promise((r) => setTimeout(r, 500));
         try {
           await calcularPeaksTrack(track.id);
           fallosSeguidos = 0;
         } catch (e) {
           fallidosAhora.push(track);
           fallosSeguidos++;
+          const detalle = e instanceof ApiError ? e.message : String(e);
+          setUltimoErrorDetalle(`"${track.titulo}": ${detalle}`);
           console.error(`No se pudo calcular peaks de "${track.titulo}" (${track.id}):`, e);
           // 5 fallos seguidos probablemente es el servidor caído o
           // reiniciándose, no temas puntuales con problemas — mejor
@@ -873,6 +884,9 @@ function PeaksPendientesPanel() {
       </div>
 
       {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
+      {ultimoErrorDetalle && (
+        <p className="text-xs text-muted font-mono m-0 break-words">Último fallo: {ultimoErrorDetalle}</p>
+      )}
 
       {pendientes.length > 0 && (
         <button
