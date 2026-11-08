@@ -263,76 +263,79 @@ function BarraReproductor() {
     .join(" · ");
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border-soft px-4 sm:px-6 py-2 flex items-center gap-3 sm:gap-4">
-      <button
-        type="button"
-        onClick={togglePlay}
-        aria-label={estado === "sonando" ? "Pausar" : "Reproducir"}
-        className="shrink-0 w-9 h-9 rounded-full bg-ink text-cream flex items-center justify-center appearance-none border-none cursor-pointer"
-      >
-        {estado === "cargando" ? (
-          <span className="text-xs">…</span>
-        ) : estado === "sonando" ? (
-          <IconPauseMini />
-        ) : (
-          <IconPlayMini />
-        )}
-      </button>
+    <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border-soft px-4 sm:px-6 py-2 flex flex-col gap-1">
+      <div className="flex items-center gap-3 sm:gap-4">
+        <button
+          type="button"
+          onClick={togglePlay}
+          aria-label={estado === "sonando" ? "Pausar" : "Reproducir"}
+          className="shrink-0 w-9 h-9 rounded-full bg-ink text-cream flex items-center justify-center appearance-none border-none cursor-pointer"
+        >
+          {estado === "cargando" ? (
+            <span className="text-xs">…</span>
+          ) : estado === "sonando" ? (
+            <IconPauseMini />
+          ) : (
+            <IconPlayMini />
+          )}
+        </button>
 
-      <div className="hidden sm:block w-44 shrink-0 min-w-0">
-        <div className="font-semibold text-sm truncate leading-tight">{trackActual.titulo}</div>
-        {subtitulo && <div className="text-xs text-muted truncate leading-tight">{subtitulo}</div>}
+        <div className="hidden sm:block w-44 shrink-0 min-w-0">
+          <div className="font-semibold text-sm truncate leading-tight">{trackActual.titulo}</div>
+          {subtitulo && <div className="text-xs text-muted truncate leading-tight">{subtitulo}</div>}
+        </div>
+
+        <div ref={contenedorRef} className="flex-1 min-w-0 cursor-pointer" />
+
+        {trackActual.duracion_seg != null && (
+          <span className="hidden sm:inline shrink-0 text-xs text-muted tabular-nums">
+            {formatearDuracion(trackActual.duracion_seg)}
+          </span>
+        )}
+
+        <button
+          type="button"
+          onClick={descargarActual}
+          disabled={descargando}
+          aria-label={`Bajar ${trackActual.titulo}`}
+          title="Bajar"
+          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink disabled:opacity-50"
+        >
+          {descargando ? <span className="text-xs">…</span> : <IconDescargar />}
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleModoContinuo}
+          aria-pressed={modoContinuo}
+          aria-label={modoContinuo ? "Desactivar reproducción continua" : "Activar reproducción continua"}
+          title={modoContinuo ? "Reproducción continua: activada" : "Reproducción continua: desactivada"}
+          className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none border-none cursor-pointer transition-colors ${
+            modoContinuo ? "bg-accent/15 text-accent" : "bg-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <IconRepetir />
+        </button>
+
+        <button
+          type="button"
+          onClick={cerrar}
+          aria-label="Cerrar reproductor"
+          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
+        >
+          <IconClose />
+        </button>
       </div>
 
-      <div ref={contenedorRef} className="flex-1 min-w-0 cursor-pointer" />
-
-      {trackActual.duracion_seg != null && (
-        <span className="hidden sm:inline shrink-0 text-xs text-muted tabular-nums">
-          {formatearDuracion(trackActual.duracion_seg)}
-        </span>
-      )}
-
-      <button
-        type="button"
-        onClick={descargarActual}
-        disabled={descargando}
-        aria-label={`Bajar ${trackActual.titulo}`}
-        title="Bajar"
-        className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink disabled:opacity-50"
-      >
-        {descargando ? <span className="text-xs">…</span> : <IconDescargar />}
-      </button>
-
+      {/* Antes esto tenía "hidden lg:block" — en el celular, que es
+          justo donde más pasan estos errores (bloqueo de pantalla,
+          políticas de reproducción en segundo plano), el reproductor se
+          cerraba en silencio sin mostrar nunca por qué. Ahora se ve en
+          cualquier tamaño de pantalla, en su propia línea para no apretar
+          los íconos de arriba. */}
       {(errorDescarga || error) && (
-        <p
-          className="hidden lg:block text-xs text-accent m-0 max-w-[220px] truncate shrink-0"
-          title={errorDescarga ?? error ?? undefined}
-        >
-          {errorDescarga ?? error}
-        </p>
+        <p className="text-xs text-accent m-0 break-words">{errorDescarga ?? error}</p>
       )}
-
-      <button
-        type="button"
-        onClick={toggleModoContinuo}
-        aria-pressed={modoContinuo}
-        aria-label={modoContinuo ? "Desactivar reproducción continua" : "Activar reproducción continua"}
-        title={modoContinuo ? "Reproducción continua: activada" : "Reproducción continua: desactivada"}
-        className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none border-none cursor-pointer transition-colors ${
-          modoContinuo ? "bg-accent/15 text-accent" : "bg-transparent text-muted hover:text-ink"
-        }`}
-      >
-        <IconRepetir />
-      </button>
-
-      <button
-        type="button"
-        onClick={cerrar}
-        aria-label="Cerrar reproductor"
-        className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
-      >
-        <IconClose />
-      </button>
     </div>
   );
 }
