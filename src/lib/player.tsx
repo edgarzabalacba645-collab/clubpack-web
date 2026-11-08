@@ -87,6 +87,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const resolverUrlRef = useRef<((id: string) => Promise<string>) | null>(null);
   const modoContinuoRef = useRef(modoContinuo);
   modoContinuoRef.current = modoContinuo;
+  // El id del track actual, en un ref aparte: lo necesita el handler de
+  // "finish" (ver más abajo, se registra UNA sola vez y si leyera
+  // trackActual directamente quedaría con el valor del primer tema para
+  // siempre — closure obsoleta).
+  const trackActualIdRef = useRef<string | null>(null);
+  trackActualIdRef.current = trackActual?.id ?? null;
 
   // Busca el siguiente track de la cola después de `actualId` y, si hay
   // uno y tenemos cómo pedir su URL, pasa a reproducirlo — si no, se
@@ -115,50 +121,90 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setEstado("cargando");
     setError(null);
 
-    const ws = WaveSurfer.create({
-      container: contenedorElRef.current,
-      height: 36,
-      waveColor: "#c7c3b8",
-      progressColor: "#ff3366",
-      cursorColor: "#0a0a0c",
-      cursorWidth: 1,
-      barWidth: 2,
-      barGap: 1,
-      barRadius: 1,
-      normalize: true,
-      url: trackActual.url,
-    });
-    wsRef.current = ws;
+    // Reproducción continua en el celular: antes cada tema destruía la
+    // instancia de wavesurfer y creaba una nueva — eso crea un <audio> del
+    // DOM distinto por cada tema. iOS Safari (y Chrome en Android, más
+    // flexible pero no siempre) solo permite reproducir SIN que el usuario
+    // vuelva a tocar la pantalla cuando es el MISMO elemento <audio> que ya
+    // arrancó una vez con un toque real — uno nuevo necesita su propio
+    // toque. Como el "finish" del tema anterior dispara el play() del
+    // siguiente por código (no por un tap), ese <audio> nuevo quedaba
+    // bloqueado y la cola se cortaba en el celular, aunque en la compu
+    // anduviera bien. Por eso ahora se crea la instancia una sola vez (al
+    // arrancar el primer tema de una sesión de escucha) y los temas
+    // siguientes se cargan con ws.load(), reutilizando el mismo <audio> —
+    // una vez destrabado por el primer toque, se queda destrabado.
+    let ws = wsRef.current;
+    if (!ws) {
+      ws = WaveSurfer.create({
+        container: contenedorElRef.current,
+        height: 36,
+        waveColor: "#c7c3b8",
+        progressColor: "#ff3366",
+        cursorColor: "#0a0a0c",
+        cursorWidth: 1,
+        barWidth: 2,
+        barGap: 1,
+        barRadius: 1,
+        normalize: true,
+      });
+      wsRef.current = ws;
 
-    ws.on("ready", () => ws.play());
-    ws.on("play", () => setEstado("sonando"));
-    ws.on("pause", () => setEstado("pausado"));
-    ws.on("finish", () => {
-      if (modoContinuoRef.current) {
-        void avanzarSiguiente(trackActual.id);
-      } else {
+      ws.on("ready", () => {
+        // Por si el navegador igual lo bloquea en algún caso raro (pestaña
+        // en segundo plano, modo ahorro de datos, etc.) — así no se queda
+        // colgado en "cargando" para siempre sin avisar nada.
+        ws?.play().catch(() => {
+          setError("El navegador bloqueó la reproducción automática — tocá play para seguir.");
+          setEstado("pausado");
+        });
+      });
+      ws.on("play", () => setEstado("sonando"));
+      ws.on("pause", () => setEstado("pausado"));
+      ws.on("finish", () => {
+        const actualId = trackActualIdRef.current;
+        if (modoContinuoRef.current && actualId) {
+          void avanzarSiguiente(actualId);
+        } else {
+          setTrackActual(null);
+        }
+      });
+      ws.on("error", (err) => {
+        // Lo más común acá es que falte CORS en el bucket de R2: a
+        // diferencia de un <audio src> simple, wavesurfer necesita poder
+        // DESCARGAR y decodificar el audio en el navegador para dibujar
+        // la onda, no solo reproducirlo.
+        console.error("wavesurfer error:", err);
+        setError("No se pudo reproducir (probablemente falta CORS en el bucket de R2).");
         setTrackActual(null);
-      }
-    });
-    ws.on("error", (err) => {
-      // Lo más común acá es que falte CORS en el bucket de R2: a
-      // diferencia de un <audio src> simple, wavesurfer necesita poder
-      // DESCARGAR y decodificar el audio en el navegador para dibujar
-      // la onda, no solo reproducirlo.
-      console.error("wavesurfer error:", err);
-      setError("No se pudo reproducir (probablemente falta CORS en el bucket de R2).");
-      setTrackActual(null);
-    });
+      });
+    }
 
-    return () => {
-      ws.destroy();
-      wsRef.current = null;
-    };
+    ws.load(trackActual.url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackActual?.id, trackActual?.url]);
 
+  // Se destruye la instancia recién cuando la barra del reproductor
+  // desaparece de verdad (se cerró o terminó la cola sin continuar) — no en
+  // cada cambio de tema, que es justo lo que había que dejar de hacer (ver
+  // el comentario de arriba). La próxima vez que arranque algo, el
+  // contenedor vuelve a existir recién por un toque real, así que una
+  // instancia nueva en ese momento no tiene el problema.
   const contenedorRef = useCallback((el: HTMLDivElement | null) => {
     contenedorElRef.current = el;
+    if (!el && wsRef.current) {
+      wsRef.current.destroy();
+      wsRef.current = null;
+    }
+  }, []);
+
+  // Red de seguridad para cuando el provider en sí se desmonta (en la práctica
+  // casi nunca, vive en la raíz de la app) — evita dejar un <audio> colgado.
+  useEffect(() => {
+    return () => {
+      wsRef.current?.destroy();
+      wsRef.current = null;
+    };
   }, []);
 
   const reproducir = useCallback((track: TrackReproduccion, opciones?: ReproducirOpciones) => {
