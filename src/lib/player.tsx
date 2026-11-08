@@ -134,9 +134,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const resuelto =
         precargada && precargada.id === siguiente.id ? precargada : await resolver(siguiente.id);
       setTrackActual({ ...siguiente, url: resuelto.url, peaks: resuelto.peaks ?? null });
-    } catch {
-      setError("No se pudo reproducir el siguiente tema.");
-      setTrackActual(null);
+    } catch (e) {
+      // OJO: antes acá también se hacía setTrackActual(null) — pero eso
+      // desmonta la barra entera (ver BarraReproductor: "if (!trackActual)
+      // return null"), ¡incluido el <p> del error que se acababa de
+      // setear! Por eso nunca se veía ningún aviso cuando esto fallaba
+      // con la pantalla bloqueada: el error se seteaba y se escondía en
+      // el mismo instante. Dejando trackActual como estaba (el tema que
+      // recién terminó, en pausa), el error queda visible de verdad.
+      const detalle = e instanceof Error ? e.message : String(e);
+      setError(`No se pudo reproducir el siguiente tema (${detalle}).`);
+      setEstado("pausado");
     }
   }, []);
 
@@ -259,13 +267,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }
       });
       ws.on("error", (err) => {
-        // Lo más común acá es que falte CORS en el bucket de R2: a
-        // diferencia de un <audio src> simple, wavesurfer necesita poder
-        // DESCARGAR y decodificar el audio en el navegador para dibujar
-        // la onda, no solo reproducirlo.
+        // Lo más común acá (cuando NO hay peaks precalculados, así que
+        // wavesurfer todavía tiene que bajar+decodificar el archivo él
+        // mismo) es que falte CORS en el bucket de R2.
+        //
+        // OJO: a propósito NO se hace setTrackActual(null) acá — eso
+        // desmonta la barra entera (ver BarraReproductor: "if
+        // (!trackActual) return null"), incluido el <p> de este mismo
+        // error, así que nunca se llegaba a VER ningún aviso. Dejando el
+        // track puesto (en pausa), el mensaje queda visible de verdad.
         console.error("wavesurfer error:", err);
         setError("No se pudo reproducir (probablemente falta CORS en el bucket de R2).");
-        setTrackActual(null);
+        setEstado("pausado");
       });
     }
 
