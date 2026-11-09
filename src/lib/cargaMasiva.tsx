@@ -3,7 +3,6 @@ import { supabase } from "./supabase";
 import { ApiError, analizarTrack, confirmarSubida, type DuplicadoCandidato } from "./api";
 import { mensajeErrorAmigable } from "./format";
 import type { Genero } from "./types";
-import { useAuth } from "./auth";
 
 export type EstadoFila = "pendiente" | "analizando" | "revision" | "subiendo" | "listo" | "error";
 
@@ -92,7 +91,6 @@ const CargaMasivaContext = createContext<CargaMasivaContextValue | null>(null);
  * la pantalla.
  */
 export function CargaMasivaProvider({ children }: { children: ReactNode }) {
-  const { perfil } = useAuth();
   const [generos, setGeneros] = useState<Genero[]>([]);
   const [filas, setFilas] = useState<FilaMasiva[]>([]);
   const [analizandoTodos, setAnalizandoTodos] = useState(false);
