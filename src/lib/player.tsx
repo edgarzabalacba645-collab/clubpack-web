@@ -200,6 +200,39 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Reanudar un tema que estuvo PAUSADO (no uno que recién arranca) puede
+  // quedar "fantasma" en Android: el navegador reporta que arrancó bien
+  // (play() resuelve sin error, se dispara el evento "play", el ícono
+  // cambia) pero no sale ningún sonido de verdad — le pasó a Edgar
+  // reanudando desde la notificación de la pantalla bloqueada. Es un
+  // patrón de bug conocido de la capa de audio nativa de Android al
+  // reactivar un audio que estuvo pausado y en segundo plano un rato: el
+  // primer pedacito de datos de ese nuevo "AudioTrack" se pierde si el
+  // pipeline todavía no está listo del todo — y como play() ya resolvió
+  // para cuando pasa, no hay ningún error que atrapar.
+  //
+  // El workaround documentado para el mismo tipo de síntoma en otros
+  // reproductores: "cebar" el play mudo un instante antes de destaparlo,
+  // para que ESE primer pedacito (potencialmente perdido) sea silencio
+  // de todos modos y lo que sí se escuche arranque ya con el pipeline
+  // despierto. No es una garantía — es un bug de la plataforma, no
+  // nuestro — pero es de bajo riesgo (en el peor caso no cambia nada) y
+  // vale la pena probarlo.
+  const reanudarConCebado = useCallback(async () => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    try {
+      ws.setMuted(true);
+      await ws.play();
+      await new Promise((r) => setTimeout(r, 150));
+      ws.setMuted(false);
+    } catch {
+      ws.setMuted(false);
+      setError("El navegador bloqueó la reproducción — tocá play de nuevo.");
+      setEstado("pausado");
+    }
+  }, []);
+
   // Precarga la URL del tema que sigue apenas arranca el actual (no hace
   // falta esperar a que termine) — así ya está lista cuando "finish" la
   // necesita. Si falla (red, token vencido, etc.) no pasa nada: queda
@@ -438,18 +471,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.setActionHandler("play", () => {
-      // Sin este .catch(), si el navegador rechaza el play() (p.ej.
-      // tocar "reanudar" en la notificación de la pantalla bloqueada
-      // después de que el sistema pausó todo en segundo plano) quedaba
-      // fallando en silencio: ni un error visible ni el botón cambiaba —
-      // Edgar tenía que desbloquear y tocar play DE NUEVO desde adentro
-      // de la app para darse cuenta de que no había arrancado.
-      wsRef.current?.play().catch(() => {
-        setError("No se pudo reanudar desde la notificación — abrí ClubPack y tocá play ahí.");
-        setEstado("pausado");
-      });
-    });
+    navigator.mediaSession.setActionHandler("play", () => void reanudarConCebado());
     navigator.mediaSession.setActionHandler("pause", () => wsRef.current?.pause());
     navigator.mediaSession.setActionHandler("nexttrack", () => {
       const actualId = trackActualIdRef.current;
@@ -465,7 +487,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler("nexttrack", null);
       navigator.mediaSession.setActionHandler("previoustrack", null);
     };
-  }, [avanzarSiguiente, retrocederAnterior]);
+  }, [avanzarSiguiente, retrocederAnterior, reanudarConCebado]);
 
   // Red de seguridad para cuando el provider en sí se desmonta (en la práctica
   // casi nunca, vive en la raíz de la app) — evita dejar un <audio> colgado.
@@ -484,25 +506,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setTrackActual((actual) => {
       if (actual?.id === track.id) {
         // Ya es el track activo — togglear en vez de recrear el waveform.
-        wsRef.current?.playPause().catch(() => {
-          setError("El navegador bloqueó la reproducción — tocá play de nuevo.");
-          setEstado("pausado");
-        });
+        // Para REANUDAR pasa por reanudarConCebado (ver su comentario) en
+        // vez de playPause() directo — para PAUSAR no hace falta nada de
+        // eso, pause() no tiene el problema de "éxito fantasma".
+        if (wsRef.current?.isPlaying()) {
+          wsRef.current.pause();
+        } else {
+          void reanudarConCebado();
+        }
         return actual;
       }
       return track;
     });
-  }, []);
+  }, [reanudarConCebado]);
 
   const togglePlay = useCallback(() => {
-    // playPause() de wavesurfer devuelve una Promise — sin atraparla, un
-    // rechazo (el navegador bloqueó el play) fallaba en silencio: ni
-    // error visible ni el botón cambiaba de ícono.
-    wsRef.current?.playPause().catch(() => {
-      setError("El navegador bloqueó la reproducción — tocá play de nuevo.");
-      setEstado("pausado");
-    });
-  }, []);
+    if (wsRef.current?.isPlaying()) {
+      wsRef.current.pause();
+    } else {
+      void reanudarConCebado();
+    }
+  }, [reanudarConCebado]);
 
   const cerrar = useCallback(() => {
     setTrackActual(null);
