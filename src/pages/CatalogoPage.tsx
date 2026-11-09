@@ -948,33 +948,51 @@ export default function CatalogoPage() {
       {/* Barra de selección */}
       {/* "bottom" sube cuando hay reproductor activo (barra fija abajo de
           todo, ver AppShell) para no quedar tapada ni tapar sus controles —
-          antes quedaban las dos superpuestas, ver captura de Edgar. */}
+          antes quedaban las dos superpuestas, ver captura de Edgar.
+          "max-w-full" + "flex-wrap" (en vez de una sola fila sin límite de
+          ancho) es lo que evita que en el celular el contenido se corte en
+          los bordes de la pantalla o las palabras se partan a la mitad —
+          pasaba eso antes: la fila no tenía tope de ancho, así que en
+          pantallas angostas se desbordaba y cada texto se achicaba hasta
+          partirse por el medio (ver otra captura de Edgar). Con
+          "whitespace-nowrap" en cada texto, lo que se mueve de línea es el
+          botón entero, nunca una palabra sola. */}
       {seleccion.size > 0 && (
         <div
-          className={`sticky self-center bg-ink text-cream rounded-full px-5 py-3 flex items-center gap-4 shadow-lg ${
+          className={`sticky self-center max-w-full bg-ink text-cream rounded-3xl px-4 py-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 shadow-lg ${
             player.trackActual ? "bottom-24" : "bottom-4"
           }`}
         >
-          <span className="text-sm font-semibold">{seleccion.size} seleccionados</span>
+          <span className="text-sm font-semibold whitespace-nowrap">
+            {seleccion.size} seleccionados
+          </span>
           <button
             type="button"
             onClick={descargarSeleccionZip}
             disabled={procesandoZip}
-            className="text-sm font-semibold bg-accent text-white px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
+            className="text-sm font-semibold bg-accent text-white px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60 whitespace-nowrap"
           >
-            {procesandoZip ? "Descargando…" : "Descargar selección"}
+            {procesandoZip ? (
+              "Descargando…"
+            ) : (
+              <>
+                <span className="sm:hidden">Descargar</span>
+                <span className="hidden sm:inline">Descargar selección</span>
+              </>
+            )}
           </button>
           <button
             type="button"
             onClick={() => setMostrarFormPlaylist(true)}
-            className="text-sm font-semibold bg-transparent text-cream px-2 py-2 appearance-none border-none cursor-pointer underline"
+            className="text-sm font-semibold bg-transparent text-cream px-2 py-2 appearance-none border-none cursor-pointer underline whitespace-nowrap"
           >
-            Guardar como playlist
+            <span className="sm:hidden">Playlist</span>
+            <span className="hidden sm:inline">Guardar como playlist</span>
           </button>
           <button
             type="button"
             onClick={() => setSeleccion(new Set())}
-            className="text-sm text-cream/70 hover:text-cream appearance-none bg-transparent border-none cursor-pointer"
+            className="text-sm text-cream/70 hover:text-cream appearance-none bg-transparent border-none cursor-pointer whitespace-nowrap"
           >
             Cancelar
           </button>

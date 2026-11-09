@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { descargarVariosDirecto, descargarPlaylistZip, ApiError } from "../lib/api";
+import { descargarVariosDirecto, descargarPlaylistZip, obtenerUrlDescarga, ApiError } from "../lib/api";
 import { formatearBpm, formatearFecha, mensajeErrorAmigable } from "../lib/format";
 import type { Genero } from "../lib/types";
 import { useAuth } from "../lib/auth";
+import { usePlayer } from "../lib/player";
 
 /** Fisher-Yates — alcanza y sobra para elegir N temas al azar de la lista que matchea los filtros. */
 function mezclar<T>(arr: T[]): T[] {
@@ -27,12 +28,15 @@ interface PlaylistFila {
 interface TrackDePlaylist {
   id: string;
   titulo: string;
+  artista_original: string | null;
   remixer: string | null;
   bpm: number | null;
+  duracion_seg: number | null;
 }
 
 export default function PlaylistsPage() {
   const { session, perfil } = useAuth();
+  const player = usePlayer();
 
   const [playlists, setPlaylists] = useState<PlaylistFila[]>([]);
   const [tracksPorPlaylist, setTracksPorPlaylist] = useState<Record<string, TrackDePlaylist[]>>({});
@@ -41,6 +45,7 @@ export default function PlaylistsPage() {
   const [aviso, setAviso] = useState<string | null>(null);
 
   const [descargandoId, setDescargandoId] = useState<string | null>(null);
+  const [reproduciendoId, setReproduciendoId] = useState<string | null>(null);
   const [confirmandoBorrarId, setConfirmandoBorrarId] = useState<string | null>(null);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
 
@@ -151,7 +156,7 @@ export default function PlaylistsPage() {
       if (lista.length > 0) {
         const { data: itemsData, error: errItems } = await supabase
           .from("playlist_tracks")
-          .select("playlist_id, orden, tracks(id, titulo, remixer, bpm)")
+          .select("playlist_id, orden, tracks(id, titulo, artista_original, remixer, bpm, duracion_seg)")
           .in(
             "playlist_id",
             lista.map((p) => p.id),
@@ -175,6 +180,54 @@ export default function PlaylistsPage() {
       setError(mensajeErrorAmigable(e));
     } finally {
       setCargando(false);
+    }
+  }
+
+  // Arranca la playlist en el reproductor global, en orden, y prende la
+  // reproducción continua si no estaba prendida ya — "reproducir la
+  // playlist" implica que siga sola de un tema al siguiente, no que haya
+  // que ir tocando play track por track. La cola queda armada con los
+  // tracks de ESTA playlist (en el orden guardado), no con el catálogo
+  // filtrado como en CatalogoPage — mismo mecanismo (ver player.tsx), solo
+  // cambia de dónde sale la lista.
+  async function reproducirPlaylist(playlist: PlaylistFila) {
+    const tracks = tracksPorPlaylist[playlist.id] ?? [];
+    if (tracks.length === 0) return;
+
+    setAviso(null);
+    setReproduciendoId(playlist.id);
+    try {
+      const primero = tracks[0];
+      const { url, duracion_seg, peaks } = await obtenerUrlDescarga(primero.id, false);
+      if (!player.modoContinuo) player.toggleModoContinuo();
+      player.reproducir(
+        {
+          id: primero.id,
+          titulo: primero.titulo,
+          artista_original: primero.artista_original,
+          remixer: primero.remixer,
+          duracion_seg: duracion_seg ?? primero.duracion_seg,
+          url,
+          peaks,
+        },
+        {
+          cola: tracks.map((t) => ({
+            id: t.id,
+            titulo: t.titulo,
+            artista_original: t.artista_original,
+            remixer: t.remixer,
+            duracion_seg: t.duracion_seg,
+          })),
+          resolverUrl: async (id) => {
+            const r = await obtenerUrlDescarga(id, false);
+            return { url: r.url, duracion_seg: r.duracion_seg, peaks: r.peaks };
+          },
+        },
+      );
+    } catch (e) {
+      setAviso(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setReproduciendoId(null);
     }
   }
 
@@ -335,7 +388,15 @@ export default function PlaylistsPage() {
                 </ul>
               )}
 
-              <div className="flex items-center gap-3 pt-1">
+              <div className="flex items-center gap-3 pt-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => reproducirPlaylist(p)}
+                  disabled={reproduciendoId === p.id || tracks.length === 0}
+                  className="text-sm font-semibold bg-accent text-white px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-50"
+                >
+                  {reproduciendoId === p.id ? "Cargando…" : "Reproducir"}
+                </button>
                 <button
                   type="button"
                   onClick={() => handleDescargarZip(p)}
