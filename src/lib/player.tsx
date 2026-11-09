@@ -305,7 +305,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           setEstado("pausado");
         });
       });
-      ws.on("play", () => setEstado("sonando"));
+      ws.on("play", () => {
+        // Limpia cualquier error de un intento anterior (p.ej. "el
+        // navegador pausó la reproducción en segundo plano") — si no, un
+        // mensaje viejo se quedaba pegado en pantalla aunque la
+        // reproducción ya se hubiera recuperado y estuviera sonando bien
+        // (confundía: "¿por qué dice que se cortó si está sonando?").
+        setError(null);
+        setEstado("sonando");
+      });
       ws.on("timeupdate", (posicion) => {
         if ("mediaSession" in navigator && "setPositionState" in navigator.mediaSession) {
           try {
@@ -430,7 +438,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.setActionHandler("play", () => wsRef.current?.play());
+    navigator.mediaSession.setActionHandler("play", () => {
+      // Sin este .catch(), si el navegador rechaza el play() (p.ej.
+      // tocar "reanudar" en la notificación de la pantalla bloqueada
+      // después de que el sistema pausó todo en segundo plano) quedaba
+      // fallando en silencio: ni un error visible ni el botón cambiaba —
+      // Edgar tenía que desbloquear y tocar play DE NUEVO desde adentro
+      // de la app para darse cuenta de que no había arrancado.
+      wsRef.current?.play().catch(() => {
+        setError("No se pudo reanudar desde la notificación — abrí ClubPack y tocá play ahí.");
+        setEstado("pausado");
+      });
+    });
     navigator.mediaSession.setActionHandler("pause", () => wsRef.current?.pause());
     navigator.mediaSession.setActionHandler("nexttrack", () => {
       const actualId = trackActualIdRef.current;
@@ -465,7 +484,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setTrackActual((actual) => {
       if (actual?.id === track.id) {
         // Ya es el track activo — togglear en vez de recrear el waveform.
-        wsRef.current?.playPause();
+        wsRef.current?.playPause().catch(() => {
+          setError("El navegador bloqueó la reproducción — tocá play de nuevo.");
+          setEstado("pausado");
+        });
         return actual;
       }
       return track;
@@ -473,7 +495,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const togglePlay = useCallback(() => {
-    wsRef.current?.playPause();
+    // playPause() de wavesurfer devuelve una Promise — sin atraparla, un
+    // rechazo (el navegador bloqueó el play) fallaba en silencio: ni
+    // error visible ni el botón cambiaba de ícono.
+    wsRef.current?.playPause().catch(() => {
+      setError("El navegador bloqueó la reproducción — tocá play de nuevo.");
+      setEstado("pausado");
+    });
   }, []);
 
   const cerrar = useCallback(() => {
