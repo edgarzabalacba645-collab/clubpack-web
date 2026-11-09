@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { CAMELOT_KEYS, formatearDuracion } from "../lib/format";
 import { useCargaMasiva, type EstadoFila, type FilaMasiva } from "../lib/cargaMasiva";
 import type { Genero } from "../lib/types";
+import AudioPreviewLocal from "./AudioPreviewLocal";
 
 export default function CargaMasiva() {
   const {
@@ -253,6 +254,8 @@ function FilaMasivaCard({
           )}
         </div>
       </div>
+
+      <AudioPreviewLocal archivo={fila.archivo} />
 
       {fila.error && <p className="text-xs text-accent font-medium m-0">{fila.error}</p>}
 

@@ -178,6 +178,28 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Busca el track ANTERIOR al actual en la cola — para el botón "anterior"
+  // de la pantalla de bloqueo / auriculares / etc. A diferencia de
+  // avanzarSiguiente, no hay precarga (proximaUrlRef solo guarda el que
+  // sigue): pide la URL fresca en el momento, como cualquier salto que no
+  // sea el avance natural hacia adelante.
+  const retrocederAnterior = useCallback(async (actualId: string) => {
+    const cola = colaRef.current;
+    const idx = cola.findIndex((t) => t.id === actualId);
+    const anterior = idx > 0 ? cola[idx - 1] : undefined;
+    const resolver = resolverUrlRef.current;
+    if (!anterior || !resolver) return;
+    try {
+      setEstado("cargando");
+      const resuelto = await resolver(anterior.id);
+      setTrackActual({ ...anterior, url: resuelto.url, peaks: resuelto.peaks ?? null });
+    } catch (e) {
+      const detalle = e instanceof Error ? e.message : String(e);
+      setError(`No se pudo reproducir el tema anterior (${detalle}).`);
+      setEstado("pausado");
+    }
+  }, []);
+
   // Precarga la URL del tema que sigue apenas arranca el actual (no hace
   // falta esperar a que termine) — así ya está lista cuando "finish" la
   // necesita. Si falla (red, token vencido, etc.) no pasa nada: queda
@@ -414,12 +436,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const actualId = trackActualIdRef.current;
       if (actualId) void avanzarSiguiente(actualId);
     });
+    navigator.mediaSession.setActionHandler("previoustrack", () => {
+      const actualId = trackActualIdRef.current;
+      if (actualId) void retrocederAnterior(actualId);
+    });
     return () => {
       navigator.mediaSession.setActionHandler("play", null);
       navigator.mediaSession.setActionHandler("pause", null);
       navigator.mediaSession.setActionHandler("nexttrack", null);
+      navigator.mediaSession.setActionHandler("previoustrack", null);
     };
-  }, [avanzarSiguiente]);
+  }, [avanzarSiguiente, retrocederAnterior]);
 
   // Red de seguridad para cuando el provider en sí se desmonta (en la práctica
   // casi nunca, vive en la raíz de la app) — evita dejar un <audio> colgado.

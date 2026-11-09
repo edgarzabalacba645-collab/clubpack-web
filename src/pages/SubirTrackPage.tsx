@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { CAMELOT_KEYS, formatearDuracion } from "../lib/format";
 import { useSubida } from "../lib/subida";
 import CargaMasiva from "../components/CargaMasiva";
+import AudioPreviewLocal from "../components/AudioPreviewLocal";
 
 export default function SubirTrackPage() {
   const {
@@ -125,6 +126,7 @@ export default function SubirTrackPage() {
               {archivo ? `${(archivo.size / (1024 * 1024)).toFixed(1)} MB` : "Elegir"}
             </span>
           </label>
+          {archivo && <AudioPreviewLocal archivo={archivo} />}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
