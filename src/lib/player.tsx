@@ -42,6 +42,11 @@ export interface TrackReproduccion extends TrackCola {
 
 export type EstadoReproduccion = "cargando" | "sonando" | "pausado";
 
+/** Cuánto antes del final real de un tema se dispara el avance al
+ * siguiente, en reproducción continua (ver el "timeupdate" en
+ * PlayerProvider más abajo para el por qué). */
+const UMBRAL_AVANCE_ANTICIPADO_SEG = 1.5;
+
 interface ReproducirOpciones {
   /** Lista ordenada de la que forma parte este track (p.ej. el catálogo
    * filtrado tal cual se ve en pantalla en ese momento) — define qué
@@ -115,6 +120,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // pestaña en segundo plano antes de que termine — precargar la URL
   // mientras el tema actual todavía suena achica ese hueco a (casi) cero.
   const proximaUrlRef = useRef<({ id: string } & ResolucionTrack) | null>(null);
+  // Evita disparar el avance al siguiente tema dos veces para el mismo
+  // tema: una vez por el avance ANTICIPADO (ver el "timeupdate" más abajo)
+  // y otra por el "finish" de siempre, si las dos llegan a correr (p.ej.
+  // si resolver() tarda más que lo que faltaba para que el tema terminara
+  // solo). Se reinicia a false cada vez que arranca un tema nuevo.
+  const avanceDisparadoRef = useRef(false);
 
   // Busca el siguiente track de la cola después de `actualId` y, si hay
   // uno y tenemos cómo pedir su URL, pasa a reproducirlo — si no, se
@@ -147,6 +158,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       setEstado("pausado");
     }
   }, []);
+
+  // Wrapper con el guard de "una sola vez por tema" de arriba — lo usan
+  // tanto el avance anticipado como el "finish" de siempre.
+  const dispararAvanceSiguiente = useCallback(
+    (actualId: string) => {
+      if (avanceDisparadoRef.current) return;
+      avanceDisparadoRef.current = true;
+      void avanzarSiguiente(actualId);
+    },
+    [avanzarSiguiente],
+  );
 
   // Precarga la URL del tema que sigue apenas arranca el actual (no hace
   // falta esperar a que termine) — así ya está lista cuando "finish" la
@@ -185,6 +207,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!trackActual || !contenedorElRef.current) return;
     setEstado("cargando");
     setError(null);
+    // Tema nuevo: vuelve a poder disparar el avance anticipado (y el
+    // "finish" normal) para ESTE tema, una sola vez cada uno.
+    avanceDisparadoRef.current = false;
 
     // Reproducción continua en el celular: antes cada tema destruía la
     // instancia de wavesurfer y creaba una nueva — eso crea un <audio> del
@@ -246,6 +271,38 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
             /* ídem arriba */
           }
         }
+        // Avance anticipado en reproducción continua: en vez de esperar a
+        // que el tema termine DEL TODO ("finish", audio real en silencio)
+        // para recién ahí arrancar a cargar el siguiente, se dispara la
+        // transición un poco antes — todavía con el tema actual sonando
+        // de verdad. Ni el fix de playbackState (nunca "none" mientras
+        // carga) ni instalar la app como PWA alcanzaron para evitar que
+        // la notificación/controles de la pantalla de bloqueo
+        // desaparezcan en Android — sospechamos que lo que realmente
+        // importa para que el sistema siga considerando esto una sesión
+        // de audio en segundo plano legítima es que haya sonido SALIENDO
+        // DE VERDAD por el parlante, no solo lo que la página declara vía
+        // JS. El hueco real de silencio entre "termina un tema" y "el
+        // siguiente ya está sonando" (por más corto que sea) podría ser
+        // justo la ventana en la que Android decide que la sesión cortó
+        // y oculta la notificación. Arrancando la carga del siguiente
+        // tema MIENTRAS el actual todavía suena, esa ventana de silencio
+        // se reduce lo más posible (en vez de eliminarse del todo: sigue
+        // siendo el mismo <audio> de siempre — ver el comentario grande
+        // de más abajo sobre por qué es uno solo reutilizado — así que
+        // cargar el siguiente igual corta el actual en el momento, no hay
+        // manera de solaparlos con esta arquitectura). El costo: se pierde
+        // el último segundo y medio de cada tema (normalmente cola/fade,
+        // no la parte importante) a cambio de intentar resolver esto.
+        const duracionTotal = ws!.getDuration();
+        if (
+          modoContinuoRef.current &&
+          duracionTotal > 0 &&
+          duracionTotal - posicion <= UMBRAL_AVANCE_ANTICIPADO_SEG
+        ) {
+          const actualId = trackActualIdRef.current;
+          if (actualId) dispararAvanceSiguiente(actualId);
+        }
       });
       ws.on("pause", () => {
         // Puede ser porque tocamos pausa nosotros, pero en el celular
@@ -253,15 +310,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // una reproducción que arrancó sola (sin un toque) estando en
         // segundo plano — distinguirlo bien necesitaría poder ver la
         // consola del celular, así que por ahora al menos se avisa.
-        if (modoContinuoRef.current && document.visibilityState === "hidden") {
+        // Si ya disparamos el avance anticipado (de arriba) para este
+        // tema, un "pause" acá es simplemente parte de ESE cambio de
+        // tema (cargar el siguiente corta el actual en el momento) y no
+        // tiene nada de inesperado — no corresponde avisar nada.
+        if (modoContinuoRef.current && document.visibilityState === "hidden" && !avanceDisparadoRef.current) {
           setError("El navegador pausó la reproducción en segundo plano.");
         }
         setEstado("pausado");
       });
       ws.on("finish", () => {
+        // Con el avance anticipado de arriba, en el caso normal esto ya
+        // ni llega a correr (el tema se corta un poco antes de llegar
+        // acá) — queda como red de seguridad para cuando por lo que sea
+        // (temas muy cortos, timeupdate que no llegó a disparar a
+        // tiempo) el avance anticipado no se disparó todavía.
         const actualId = trackActualIdRef.current;
         if (modoContinuoRef.current && actualId) {
-          void avanzarSiguiente(actualId);
+          dispararAvanceSiguiente(actualId);
         } else {
           setTrackActual(null);
         }

@@ -946,8 +946,15 @@ export default function CatalogoPage() {
       </div>
 
       {/* Barra de selección */}
+      {/* "bottom" sube cuando hay reproductor activo (barra fija abajo de
+          todo, ver AppShell) para no quedar tapada ni tapar sus controles —
+          antes quedaban las dos superpuestas, ver captura de Edgar. */}
       {seleccion.size > 0 && (
-        <div className="sticky bottom-4 self-center bg-ink text-cream rounded-full px-5 py-3 flex items-center gap-4 shadow-lg">
+        <div
+          className={`sticky self-center bg-ink text-cream rounded-full px-5 py-3 flex items-center gap-4 shadow-lg ${
+            player.trackActual ? "bottom-24" : "bottom-4"
+          }`}
+        >
           <span className="text-sm font-semibold">{seleccion.size} seleccionados</span>
           <button
             type="button"
