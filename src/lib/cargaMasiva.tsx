@@ -125,7 +125,13 @@ export function CargaMasivaProvider({ children }: { children: ReactNode }) {
       error: null,
       titulo: tituloDesdeNombreArchivo(archivo.name),
       artistaOriginal: "",
-      remixer: perfil?.nombre_dj ?? "",
+      // Arranca vacío a propósito, NO con el nombre de DJ del perfil — en
+      // la carga masiva no todos los temas son remixes propios, y que se
+      // precargara el nombre de Edgar en cada fila terminaba subiendo
+      // temas ajenos con su nombre como remixer sin querer. Para poner
+      // el mismo remixer en todas las filas de una, está el campo
+      // "remixerMasivo" (más abajo) que lo aplica a demanda.
+      remixer: "",
       generoId: "",
       keyArmonica: "",
       bpm: "",
