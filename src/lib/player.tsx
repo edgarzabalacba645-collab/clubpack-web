@@ -91,11 +91,6 @@ interface PlayerContextValue {
    * parar. Se puede prender/apagar en cualquier momento. */
   modoContinuo: boolean;
   toggleModoContinuo: () => void;
-  /** Registro de los últimos eventos del reproductor (play/pause nativos,
-   * qué pasó con el cebado, etc.) — temporal, para diagnosticar a ciegas
-   * el bug de pantalla bloqueada sin tener acceso a la consola del
-   * celular. Se puede sacar una vez resuelto. */
-  registro: string[];
   /** Ref callback para el <div> donde wavesurfer dibuja la onda — lo usa la barra del reproductor (ver AppShell). */
   contenedorRef: (el: HTMLDivElement | null) => void;
   reproducir: (track: TrackReproduccion, opciones?: ReproducirOpciones) => void;
@@ -125,18 +120,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [estado, setEstado] = useState<EstadoReproduccion>("pausado");
   const [error, setError] = useState<string | null>(null);
   const [modoContinuo, setModoContinuo] = useState(false);
-  const [registro, setRegistro] = useState<string[]>([]);
-  const registroRef = useRef<string[]>([]);
-  // Anota un evento con hora exacta — ver el comentario de "registro" en
-  // PlayerContextValue. setRegistro SÍ puede disparar un re-render con la
-  // pantalla bloqueada (React sigue procesando estado aunque la pestaña
-  // esté en segundo plano, solo se recorta el pintado visual), así que no
-  // hace falta nada especial para que quede guardado a tiempo.
-  const anotar = useCallback((msg: string) => {
-    const linea = `${new Date().toLocaleTimeString("es-AR")} — ${msg}`;
-    registroRef.current = [...registroRef.current.slice(-39), linea];
-    setRegistro(registroRef.current);
-  }, []);
   const wsRef = useRef<WaveSurfer | null>(null);
   const contenedorElRef = useRef<HTMLDivElement | null>(null);
   // Cola + resolver de URL: quedan en refs (no state) porque cambiarlos
@@ -169,18 +152,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // grande más abajo (donde se arranca) sobre por qué hace falta.
   const audioSilencioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Fuerza a Android a repintar la notificación de la pantalla bloqueada
-  // (y con eso, a corregir el ícono de play/pausa que se le queda pegado
-  // — ver el comentario grande en el handler "pause" de wavesurfer más
-  // abajo). Hallazgo de una prueba real de Edgar: con el ícono pegado en
-  // pausa, tocar "Siguiente" (que SÍ cambia metadata, por el cambio de
-  // tema) destrabó todo y volvió a sonar — tocar play en ese estado, no.
-  // O sea que a este Android/Chrome LE ALCANZA con un cambio de
-  // metadata para forzar el repintado completo de la notificación,
-  // aunque playbackState ya estuviera bien seteado. Reconstruir la
-  // metadata (con un objeto NUEVO, reusar el mismo objeto de referencia
-  // no sirve) en cada play/pause real es ese mismo "empujón", sin tener
-  // que esperar a que cambie el tema.
+  // Intento de forzar a Android a repintar la notificación de la pantalla
+  // bloqueada (para corregir el ícono de play/pausa que se le queda
+  // pegado en pausa — ver el comentario grande en el handler "pause" de
+  // wavesurfer más abajo). Pista real: con el ícono pegado, tocar
+  // "Siguiente" (que cambia de tema, audio incluido) destrababa todo y
+  // volvía a sonar. La hipótesis era que alcanzaba con repintar la
+  // metadata (sin tocar el audio) para lograr el mismo efecto — PROBADO
+  // en el celular de Edgar (POCO M6 Pro, HyperOS) y NO FUE SUFICIENTE: el
+  // ícono siguió pegado igual. Tampoco fue timing (el repintado corre en
+  // el mismo instante del pause nativo, confirmado con logs). Revisados
+  // también los ajustes de batería/autostart/apps bloqueadas específicos
+  // de MIUI/HyperOS — ya estaban bien puestos, así que tampoco es eso.
+  // Conclusión por ahora: parece una limitación de la plataforma en este
+  // equipo en particular, no arreglable desde acá — se deja esta función
+  // (es inocua y podría ayudar en otros Android) pero sin seguir
+  // invirtiendo tiempo en el síntoma del ícono pegado.
   const repintarMetadata = useCallback(() => {
     if (!("mediaSession" in navigator)) return;
     const t = trackActualRef.current;
@@ -190,8 +177,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       artist: t.remixer ?? t.artista_original ?? "ClubPack",
       album: "ClubPack",
     });
-    anotar("Metadata repintada (para forzar refresco del ícono de la notificación)");
-  }, [anotar]);
+  }, []);
 
   // Busca el siguiente track de la cola después de `actualId` y, si hay
   // uno y tenemos cómo pedir su URL, pasa a reproducirlo — si no, se
@@ -268,11 +254,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const reanudarConCebado = useCallback(async () => {
     const ws = wsRef.current;
     if (!ws) return;
-    anotar("Cebado: arrancando (mute + play)");
     try {
       ws.setMuted(true);
       await ws.play();
-      anotar("Cebado: play() resolvió OK, esperando confirmación de audio real");
       // Destapar el audio recién cuando el navegador confirma que avanzó
       // de verdad (evento nativo "timeupdate"), NO después de un tiempo
       // fijo con setTimeout como se hacía antes. Motivo: con la pantalla
@@ -289,33 +273,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // de 1.5s es solo una red de seguridad, no el camino principal.
       await new Promise<void>((resolve) => {
         let resuelto = false;
-        let viaTimeupdate = false;
         const destapar = () => {
           if (resuelto) return;
           resuelto = true;
           cancelarSuscripcion();
-          anotar(
-            viaTimeupdate
-              ? "Cebado: llegó timeupdate, destapando"
-              : "Cebado: no llegó timeupdate en 1.5s, destapando por las dudas",
-          );
           resolve();
         };
-        const cancelarSuscripcion = ws.once("timeupdate", () => {
-          viaTimeupdate = true;
-          destapar();
-        });
+        const cancelarSuscripcion = ws.once("timeupdate", destapar);
         setTimeout(destapar, 1500);
       });
       ws.setMuted(false);
-      anotar(`Cebado: terminado — ws.isPlaying()=${ws.isPlaying()}`);
-    } catch (e) {
+    } catch {
       ws.setMuted(false);
-      anotar(`Cebado: play() rechazado — ${e instanceof Error ? e.message : String(e)}`);
       setError("El navegador bloqueó la reproducción — tocá play de nuevo.");
       setEstado("pausado");
     }
-  }, [anotar]);
+  }, []);
 
   // Precarga la URL del tema que sigue apenas arranca el actual (no hace
   // falta esperar a que termine) — así ya está lista cuando "finish" la
@@ -418,7 +391,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // en segundo plano, modo ahorro de datos, etc.) — así no se queda
         // colgado en "cargando" para siempre sin avisar nada.
         ws?.play().catch(() => {
-          anotar("Evento ready: play() automático rechazado");
           setError("El navegador bloqueó la reproducción automática — tocá play para seguir.");
           setEstado("pausado");
         });
@@ -429,7 +401,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // mensaje viejo se quedaba pegado en pantalla aunque la
         // reproducción ya se hubiera recuperado y estuviera sonando bien
         // (confundía: "¿por qué dice que se cortó si está sonando?").
-        anotar("Evento nativo: play (arrancó audio)");
         // Setear playbackState ACÁ, directo, y no solo dejarlo en manos
         // del useEffect de más abajo que lo deriva de "estado" (React) —
         // ver el mismo razonamiento en el "pause" de abajo. Es lo que el
@@ -459,33 +430,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // una reproducción que arrancó sola (sin un toque) estando en
         // segundo plano — distinguirlo bien necesitaría poder ver la
         // consola del celular, así que por ahora al menos se avisa.
-        anotar(`Evento nativo: pause (visibility=${document.visibilityState})`);
-        // HALLAZGO del registro técnico (02:06:45 en adelante, prueba de
-        // Edgar del 10/11): después de UN solo toque real en "Pausa" de
-        // la notificación, quedaron registrados varios toques más
-        // seguidos, todos leídos como "PAUSA" — nunca uno de "PLAY". Eso
-        // quiere decir que el botón de la notificación JAMÁS pasó a
-        // mostrar el ícono de play: el sistema operativo seguía
-        // pensando que esto estaba "playing" y por eso seguía ofreciendo
-        // pausar, no reanudar. Causa: antes acá NO se tocaba
-        // navigator.mediaSession.playbackState directo — quedaba en
-        // manos del useEffect de más abajo, que lo deriva de "estado"
-        // (React), y con la pantalla bloqueada el ciclo de render de
-        // React puede quedar frenado/demorado, así que ese efecto no
-        // llegaba a correr a tiempo (o nunca) para avisarle al sistema
-        // operativo que el audio ya se había pausado de verdad. Por eso
-        // ahora se setea ACÁ TAMBIÉN, directo y sincrónico con el evento
-        // nativo, sin esperar a React.
         //
-        // SEGUIMIENTO (misma prueba, con el fix de arriba ya puesto): el
-        // ícono SIGUIÓ pegado en pausa — playbackState sincrónico no
-        // alcanzó. Pero Edgar probó tocar "Siguiente" en ese estado
-        // pegado y ESO sí destrabó la reproducción. La diferencia es que
-        // "Siguiente" cambia la metadata (nuevo título), no solo
-        // playbackState. Conclusión: a este Android/Chrome en particular
-        // le hace falta un cambio de metadata para forzar el repintado
-        // completo de la notificación — por eso ahora también se llama
-        // repintarMetadata() acá, no solo se setea playbackState.
+        // NOTA sobre el bug de "ícono de pausa pegado" en la notificación
+        // de pantalla bloqueada (reportado por Edgar, POCO M6 Pro /
+        // HyperOS): se probaron acá, en orden, (1) setear playbackState
+        // directo y sincrónico con el evento nativo en vez de dejarlo en
+        // manos del useEffect que lo deriva de "estado" (React podía
+        // tardar en correrlo con la pantalla bloqueada) y (2) repintar la
+        // metadata (repintarMetadata) además de playbackState, ya que
+        // tocar "Siguiente" con el ícono pegado sí lo destrababa. NINGUNA
+        // de las dos alcanzó en ese equipo — confirmado con logs que
+        // corrían en el instante correcto, y con los ajustes de batería/
+        // autostart de MIUI ya puestos en "sin restricciones". Quedan
+        // las dos igual (no hacen daño y podrían ayudar en otros
+        // Android), pero el síntoma en sí parece ser una limitación de
+        // la plataforma en ese equipo puntual, no arreglable desde acá.
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
         repintarMetadata();
         if (modoContinuoRef.current && document.visibilityState === "hidden") {
@@ -494,7 +453,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         setEstado("pausado");
       });
       ws.on("finish", () => {
-        anotar("Evento nativo: finish (tema terminó)");
         const actualId = trackActualIdRef.current;
         if (modoContinuoRef.current && actualId) {
           void avanzarSiguiente(actualId);
@@ -513,7 +471,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // error, así que nunca se llegaba a VER ningún aviso. Dejando el
         // track puesto (en pausa), el mensaje queda visible de verdad.
         console.error("wavesurfer error:", err);
-        anotar(`Evento nativo: error — ${err instanceof Error ? err.message : String(err)}`);
         setError("No se pudo reproducir (probablemente falta CORS en el bucket de R2).");
         setEstado("pausado");
       });
@@ -599,21 +556,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.setActionHandler("play", () => {
-      anotar("MediaSession: se tocó PLAY en la notificación");
-      void reanudarConCebado();
-    });
-    navigator.mediaSession.setActionHandler("pause", () => {
-      anotar("MediaSession: se tocó PAUSA en la notificación");
-      wsRef.current?.pause();
-    });
+    navigator.mediaSession.setActionHandler("play", () => void reanudarConCebado());
+    navigator.mediaSession.setActionHandler("pause", () => wsRef.current?.pause());
     navigator.mediaSession.setActionHandler("nexttrack", () => {
-      anotar("MediaSession: se tocó SIGUIENTE en la notificación");
       const actualId = trackActualIdRef.current;
       if (actualId) void avanzarSiguiente(actualId);
     });
     navigator.mediaSession.setActionHandler("previoustrack", () => {
-      anotar("MediaSession: se tocó ANTERIOR en la notificación");
       const actualId = trackActualIdRef.current;
       if (actualId) void retrocederAnterior(actualId);
     });
@@ -623,7 +572,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler("nexttrack", null);
       navigator.mediaSession.setActionHandler("previoustrack", null);
     };
-  }, [avanzarSiguiente, retrocederAnterior, reanudarConCebado, anotar]);
+  }, [avanzarSiguiente, retrocederAnterior, reanudarConCebado]);
 
   // Red de seguridad para cuando el provider en sí se desmonta (en la práctica
   // casi nunca, vive en la raíz de la app) — evita dejar un <audio> colgado.
@@ -680,7 +629,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         error,
         modoContinuo,
         toggleModoContinuo,
-        registro,
         contenedorRef,
         reproducir,
         togglePlay,
