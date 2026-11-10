@@ -10,6 +10,7 @@ import {
   descargarVariosDirecto,
   descargarZip,
   obtenerUrlDescarga,
+  quitarPortada,
   subirPortada,
 } from "../lib/api";
 import {
@@ -159,6 +160,7 @@ export default function CatalogoPage() {
   const [edTags, setEdTags] = useState("");
   const [guardandoEdicion, setGuardandoEdicion] = useState(false);
   const [subiendoPortada, setSubiendoPortada] = useState(false);
+  const [quitandoPortada, setQuitandoPortada] = useState(false);
 
   const [confirmandoBorrarId, setConfirmandoBorrarId] = useState<string | null>(null);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
@@ -446,6 +448,26 @@ export default function CatalogoPage() {
       setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo subir la portada.");
     } finally {
       setSubiendoPortada(false);
+    }
+  }
+
+  // Saca la portada propia (p.ej. si quedó pegada la de otro tema por
+  // error) y deja al track con la genérica de ClubPack, sin tener que
+  // pasar por el explorador de archivos a elegir una imagen nueva.
+  async function usarPortadaGenerica() {
+    if (!editando) return;
+    setQuitandoPortada(true);
+    setAvisoAccion(null);
+    try {
+      await quitarPortada(editando.id);
+      setTracks((prev) =>
+        prev.map((t) => (t.id === editando.id ? { ...t, portada_url: null } : t)),
+      );
+      setEditando((prev) => (prev ? { ...prev, portada_url: null } : prev));
+    } catch (e) {
+      setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo quitar la portada.");
+    } finally {
+      setQuitandoPortada(false);
     }
   }
 
@@ -1045,20 +1067,32 @@ export default function CatalogoPage() {
               />
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-body">Portada</label>
-                <label className="text-xs font-semibold underline text-ink cursor-pointer self-start">
-                  {subiendoPortada ? "Subiendo…" : "Cambiar imagen"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    disabled={subiendoPortada}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void cambiarPortada(file);
-                      e.target.value = "";
-                    }}
-                    className="hidden"
-                  />
-                </label>
+                <div className="flex items-center gap-3">
+                  <label className="text-xs font-semibold underline text-ink cursor-pointer self-start">
+                    {subiendoPortada ? "Subiendo…" : "Cambiar imagen"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={subiendoPortada}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void cambiarPortada(file);
+                        e.target.value = "";
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                  {editando.portada_url && (
+                    <button
+                      type="button"
+                      onClick={usarPortadaGenerica}
+                      disabled={quitandoPortada || subiendoPortada}
+                      className="text-xs font-semibold underline text-muted appearance-none bg-transparent border-none cursor-pointer disabled:opacity-60"
+                    >
+                      {quitandoPortada ? "Quitando…" : "Usar la genérica de ClubPack"}
+                    </button>
+                  )}
+                </div>
                 <span className="text-xs text-muted">Si no subís una, queda la genérica de ClubPack.</span>
               </div>
             </div>

@@ -236,6 +236,11 @@ export function subirPortada(trackId: string, file: File) {
   return apiFetchJson<{ path: string }>(`/tracks/${trackId}/portada`, { method: "POST", body: form });
 }
 
+// Saca la portada propia de un track y lo deja con la genérica de ClubPack.
+export function quitarPortada(trackId: string) {
+  return apiFetchJson<{ ok: boolean }>(`/tracks/${trackId}/portada`, { method: "DELETE" });
+}
+
 export function subirImagenHerramienta(file: File) {
   const form = new FormData();
   form.append("file", file);
