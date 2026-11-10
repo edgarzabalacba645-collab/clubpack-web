@@ -152,6 +152,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // siempre — closure obsoleta).
   const trackActualIdRef = useRef<string | null>(null);
   trackActualIdRef.current = trackActual?.id ?? null;
+  // Mismo motivo que trackActualIdRef, pero con el track completo — lo
+  // necesita "repintarMetadata" (ver más abajo) para reconstruir la
+  // metadata de Media Session desde los handlers nativos play/pause, que
+  // también se registran una sola vez.
+  const trackActualRef = useRef<TrackReproduccion | null>(null);
+  trackActualRef.current = trackActual;
   // URL del PRÓXIMO tema de la cola, pedida de antemano (ver el effect más
   // abajo) — para que al terminar un tema no haya que esperar un fetch de
   // red justo en ese instante. Con la pantalla bloqueada, ese hueco async
@@ -162,6 +168,30 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Segundo <audio> aparte, de silencio puro en loop — ver el comentario
   // grande más abajo (donde se arranca) sobre por qué hace falta.
   const audioSilencioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Fuerza a Android a repintar la notificación de la pantalla bloqueada
+  // (y con eso, a corregir el ícono de play/pausa que se le queda pegado
+  // — ver el comentario grande en el handler "pause" de wavesurfer más
+  // abajo). Hallazgo de una prueba real de Edgar: con el ícono pegado en
+  // pausa, tocar "Siguiente" (que SÍ cambia metadata, por el cambio de
+  // tema) destrabó todo y volvió a sonar — tocar play en ese estado, no.
+  // O sea que a este Android/Chrome LE ALCANZA con un cambio de
+  // metadata para forzar el repintado completo de la notificación,
+  // aunque playbackState ya estuviera bien seteado. Reconstruir la
+  // metadata (con un objeto NUEVO, reusar el mismo objeto de referencia
+  // no sirve) en cada play/pause real es ese mismo "empujón", sin tener
+  // que esperar a que cambie el tema.
+  const repintarMetadata = useCallback(() => {
+    if (!("mediaSession" in navigator)) return;
+    const t = trackActualRef.current;
+    if (!t) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: t.titulo,
+      artist: t.remixer ?? t.artista_original ?? "ClubPack",
+      album: "ClubPack",
+    });
+    anotar("Metadata repintada (para forzar refresco del ícono de la notificación)");
+  }, [anotar]);
 
   // Busca el siguiente track de la cola después de `actualId` y, si hay
   // uno y tenemos cómo pedir su URL, pasa a reproducirlo — si no, se
@@ -406,6 +436,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // sistema operativo lee para decidir qué ícono mostrar en la
         // notificación de la pantalla de bloqueo.
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
+        // Repintar metadata además de playbackState — ver el comentario
+        // grande de "repintarMetadata" y el del handler "pause" de acá
+        // abajo: a este Android/Chrome el playbackState solo no le
+        // alcanza para refrescar el ícono de la notificación.
+        repintarMetadata();
         setError(null);
         setEstado("sonando");
       });
@@ -441,7 +476,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // operativo que el audio ya se había pausado de verdad. Por eso
         // ahora se setea ACÁ TAMBIÉN, directo y sincrónico con el evento
         // nativo, sin esperar a React.
+        //
+        // SEGUIMIENTO (misma prueba, con el fix de arriba ya puesto): el
+        // ícono SIGUIÓ pegado en pausa — playbackState sincrónico no
+        // alcanzó. Pero Edgar probó tocar "Siguiente" en ese estado
+        // pegado y ESO sí destrabó la reproducción. La diferencia es que
+        // "Siguiente" cambia la metadata (nuevo título), no solo
+        // playbackState. Conclusión: a este Android/Chrome en particular
+        // le hace falta un cambio de metadata para forzar el repintado
+        // completo de la notificación — por eso ahora también se llama
+        // repintarMetadata() acá, no solo se setea playbackState.
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
+        repintarMetadata();
         if (modoContinuoRef.current && document.visibilityState === "hidden") {
           setError("El navegador pausó la reproducción en segundo plano.");
         }
