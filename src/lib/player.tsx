@@ -400,6 +400,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // reproducción ya se hubiera recuperado y estuviera sonando bien
         // (confundía: "¿por qué dice que se cortó si está sonando?").
         anotar("Evento nativo: play (arrancó audio)");
+        // Setear playbackState ACÁ, directo, y no solo dejarlo en manos
+        // del useEffect de más abajo que lo deriva de "estado" (React) —
+        // ver el mismo razonamiento en el "pause" de abajo. Es lo que el
+        // sistema operativo lee para decidir qué ícono mostrar en la
+        // notificación de la pantalla de bloqueo.
+        if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
         setError(null);
         setEstado("sonando");
       });
@@ -419,6 +425,23 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // segundo plano — distinguirlo bien necesitaría poder ver la
         // consola del celular, así que por ahora al menos se avisa.
         anotar(`Evento nativo: pause (visibility=${document.visibilityState})`);
+        // HALLAZGO del registro técnico (02:06:45 en adelante, prueba de
+        // Edgar del 10/11): después de UN solo toque real en "Pausa" de
+        // la notificación, quedaron registrados varios toques más
+        // seguidos, todos leídos como "PAUSA" — nunca uno de "PLAY". Eso
+        // quiere decir que el botón de la notificación JAMÁS pasó a
+        // mostrar el ícono de play: el sistema operativo seguía
+        // pensando que esto estaba "playing" y por eso seguía ofreciendo
+        // pausar, no reanudar. Causa: antes acá NO se tocaba
+        // navigator.mediaSession.playbackState directo — quedaba en
+        // manos del useEffect de más abajo, que lo deriva de "estado"
+        // (React), y con la pantalla bloqueada el ciclo de render de
+        // React puede quedar frenado/demorado, así que ese efecto no
+        // llegaba a correr a tiempo (o nunca) para avisarle al sistema
+        // operativo que el audio ya se había pausado de verdad. Por eso
+        // ahora se setea ACÁ TAMBIÉN, directo y sincrónico con el evento
+        // nativo, sin esperar a React.
+        if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
         if (modoContinuoRef.current && document.visibilityState === "hidden") {
           setError("El navegador pausó la reproducción en segundo plano.");
         }
