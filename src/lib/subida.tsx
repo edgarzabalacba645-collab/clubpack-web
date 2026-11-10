@@ -3,7 +3,6 @@ import { supabase } from "./supabase";
 import { ApiError, analizarTrack, confirmarSubida, type AnalisisTrack } from "./api";
 import { mensajeErrorAmigable } from "./format";
 import type { Genero } from "./types";
-import { useAuth } from "./auth";
 
 export type FaseSubida = "formulario" | "analizando" | "revision" | "confirmando" | "listo";
 export type ModoSubida = "individual" | "masivo";
@@ -60,7 +59,6 @@ const SubidaContext = createContext<SubidaContextValue | null>(null);
  * dibuja la pantalla.
  */
 export function SubidaProvider({ children }: { children: ReactNode }) {
-  const { perfil } = useAuth();
   const [modo, setModo] = useState<ModoSubida>("individual");
   const [fase, setFase] = useState<FaseSubida>("formulario");
   const [generos, setGeneros] = useState<Genero[]>([]);
@@ -81,11 +79,6 @@ export function SubidaProvider({ children }: { children: ReactNode }) {
   const [tituloSubido, setTituloSubido] = useState("");
 
   useEffect(() => {
-    // Prellenar el remixer con el nombre de DJ del perfil, si lo tiene.
-    if (perfil?.nombre_dj) setRemixer(perfil.nombre_dj);
-  }, [perfil?.nombre_dj]);
-
-  useEffect(() => {
     (async () => {
       try {
         const { data, error } = await supabase
@@ -104,7 +97,11 @@ export function SubidaProvider({ children }: { children: ReactNode }) {
     setArchivo(null);
     setTitulo("");
     setArtistaOriginal("");
-    setRemixer(perfil?.nombre_dj ?? "");
+    // Arranca vacío a propósito — ver el mismo motivo en cargaMasiva.tsx:
+    // no todos los temas subidos son remixes propios de quien está
+    // logueado, y precargar el nombre llevaba a subir temas ajenos con
+    // ese nombre como remixer sin querer.
+    setRemixer("");
     setGeneroId("");
     setKeyArmonica("");
     setBpmManual("");
