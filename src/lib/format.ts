@@ -50,9 +50,19 @@ export function mensajeErrorAmigable(error: unknown): string {
   }
 
   const esDeRed = /failed to fetch|networkerror|load failed|network request failed/i.test(texto);
-  return esDeRed
-    ? "No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo."
-    : texto;
+  if (esDeRed) return "No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.";
+
+  // Postgres/RLS cruda ("new row violates row-level security policy for
+  // table...") no dice nada para alguien que no sabe qué es RLS. Red de
+  // seguridad para cualquier insert/update/delete bloqueado por permisos
+  // que no tenga ya un chequeo previo más específico (ver
+  // tieneAccesoActivo en auth.tsx) — la causa más común en ClubPack es no
+  // tener suscripción activa; la otra es no ser quien creó/subió eso.
+  if (/row-level security policy/i.test(texto)) {
+    return "No tenés permiso para hacer esto — revisá que tu cuenta tenga una suscripción activa (o que seas quien lo creó).";
+  }
+
+  return texto;
 }
 
 /** Fecha corta en es-AR, p. ej. "4 nov 2026". */

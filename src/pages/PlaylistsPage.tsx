@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { descargarVariosDirecto, descargarPlaylistZip, obtenerUrlDescarga, ApiError } from "../lib/api";
 import { formatearBpm, formatearFecha, mensajeErrorAmigable } from "../lib/format";
 import type { Genero } from "../lib/types";
-import { useAuth } from "../lib/auth";
+import { useAuth, tieneAccesoActivo, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
 import { usePlayer } from "../lib/player";
 
 /** Fisher-Yates — alcanza y sobra para elegir N temas al azar de la lista que matchea los filtros. */
@@ -76,6 +76,13 @@ export default function PlaylistsPage() {
     const cantidad = Number(cantidadGen);
     if (!cantidad || cantidad < 1) {
       setAviso("Poné una cantidad de temas válida.");
+      return;
+    }
+    // Mismo chequeo que en el Catálogo al guardar una playlist — si no,
+    // el insert de más abajo lo rechaza igual por RLS, pero con el
+    // mensaje crudo de Postgres en vez de uno que diga por qué.
+    if (!tieneAccesoActivo(perfil)) {
+      setAviso(MENSAJE_SIN_ACCESO_ACTIVO);
       return;
     }
 

@@ -109,6 +109,21 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
+/**
+ * Mismo criterio que la función SQL tiene_acceso_activo(): suscripción
+ * activa, o rol admin. Pensado para chequear ANTES de mandar una
+ * escritura que RLS va a rechazar igual si esto da false — así el aviso
+ * es específico ("no tenés suscripción activa") en vez de depender del
+ * mensaje crudo de Postgres que cae en el catch (ver el fallback
+ * genérico para row-level security en mensajeErrorAmigable).
+ */
+export function tieneAccesoActivo(perfil: Perfil | null): boolean {
+  return !!perfil && (perfil.estado_suscripcion === "activo" || perfil.rol === "admin");
+}
+
+export const MENSAJE_SIN_ACCESO_ACTIVO =
+  "Tu cuenta no tiene una suscripción activa, así que no podés hacer esto todavía.";
+
 function traducirError(mensaje: string): string {
   const m = mensaje.toLowerCase();
   if (m.includes("invalid login credentials")) return "Email o contraseña incorrectos.";

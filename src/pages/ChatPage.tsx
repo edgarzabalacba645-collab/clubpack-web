@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../lib/auth";
+import { useAuth, tieneAccesoActivo, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
 import { mensajeErrorAmigable } from "../lib/format";
 import type { MensajeChat, MensajeChatInsert } from "../lib/types";
 
@@ -73,6 +73,12 @@ export default function ChatPage() {
   async function enviar(e: FormEvent) {
     e.preventDefault();
     if (!session || !texto.trim()) return;
+    // Mismo chequeo que en Catálogo/Playlists — si no, el insert lo
+    // rechaza igual por RLS, pero con el mensaje crudo de Postgres.
+    if (!tieneAccesoActivo(perfil)) {
+      setError(MENSAJE_SIN_ACCESO_ACTIVO);
+      return;
+    }
     setEnviando(true);
     setError(null);
     try {
@@ -100,7 +106,15 @@ export default function ChatPage() {
         <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
           {cargando && <p className="text-sm text-muted text-center m-0">Cargando…</p>}
           {!cargando && error && <p className="text-sm text-accent text-center m-0">{error}</p>}
-          {!cargando && !error && mensajes.length === 0 && (
+          {/* Igual que en Herramientas: sin acceso activo, RLS devuelve el
+              historial vacío (no un error) — sin esto se veía igual que
+              "no hay mensajes todavía" aunque el chat esté lleno. */}
+          {!cargando && !error && mensajes.length === 0 && !tieneAccesoActivo(perfil) && (
+            <p className="text-sm text-muted text-center m-0">
+              El chat es parte de la suscripción mensual — suscribite para verlo y participar.
+            </p>
+          )}
+          {!cargando && !error && mensajes.length === 0 && tieneAccesoActivo(perfil) && (
             <p className="text-sm text-muted text-center m-0">
               Todavía no hay mensajes — arrancá la charla.
             </p>
