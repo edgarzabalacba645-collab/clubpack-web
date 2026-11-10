@@ -348,6 +348,7 @@ export default function CatalogoPage() {
   async function abrirFormPlaylist() {
     setMostrarFormPlaylist(true);
     setPlaylistDestino("");
+    setAvisoAccion(null);
     try {
       let query = supabase.from("playlists").select("id, nombre").order("nombre");
       if (perfil?.rol !== "admin") query = query.eq("creado_por", session?.user.id ?? "");
@@ -1087,7 +1088,15 @@ export default function CatalogoPage() {
 
       {mostrarFormPlaylist && (
         <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50 px-4">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4">
+          {/* max-h + overflow-y-auto: en el celular, con el teclado abierto
+              (lo dispara el autoFocus del input de nombre), el viewport
+              visible se achica mucho y el modal podía quedar más alto que
+              lo que entraba en pantalla — empujando el botón "Crear" por
+              detrás del teclado, invisible e intocable, aunque el resto
+              del formulario (elegir tema, escribir el nombre) funcionara
+              bien. Con esto el contenido del modal scrollea en vez de
+              cortarse, así el botón siempre se puede alcanzar. */}
+          <div className="bg-card rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
             <h2 className="font-display font-bold text-lg m-0">
               {playlistDestino ? "Sumar a playlist" : "Nueva playlist"}
             </h2>
@@ -1120,6 +1129,17 @@ export default function CatalogoPage() {
                 className="px-3 py-2.5 rounded-lg border border-border text-sm bg-cream-soft"
               />
             )}
+
+            {/* Antes, si esto fallaba (ej. error de red o de permisos), el
+                aviso se seteaba pero se mostraba arriba de todo en la
+                página — tapado por este mismo modal (que cubre toda la
+                pantalla), así que no se veía nada: tocabas "Crear" y
+                parecía que no pasaba nada. Mostrándolo acá también, el
+                error queda visible sin tener que cerrar el modal. */}
+            {avisoAccion && (
+              <p className="text-sm text-accent font-medium m-0">{avisoAccion}</p>
+            )}
+
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
