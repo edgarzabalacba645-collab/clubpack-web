@@ -148,6 +148,12 @@ export default function CatalogoPage() {
   const [guardandoPlaylist, setGuardandoPlaylist] = useState(false);
   const [nombrePlaylist, setNombrePlaylist] = useState("");
   const [mostrarFormPlaylist, setMostrarFormPlaylist] = useState(false);
+  // Playlists a las que este usuario les puede sumar temas (las propias,
+  // o todas si es admin — mismo criterio que para editar/borrar una
+  // playlist, ver RLS de playlist_tracks). "" en playlistDestino significa
+  // "crear una nueva", cualquier otro valor es el id de una ya existente.
+  const [playlistsPropias, setPlaylistsPropias] = useState<{ id: string; nombre: string }[]>([]);
+  const [playlistDestino, setPlaylistDestino] = useState("");
   const [avisoAccion, setAvisoAccion] = useState<string | null>(null);
 
   const [editando, setEditando] = useState<TrackFila | null>(null);
@@ -335,33 +341,91 @@ export default function CatalogoPage() {
     }
   }
 
+  // Abre el modal y, de paso, trae la lista de playlists a las que este
+  // usuario puede sumar temas — antes la única opción era crear una
+  // nueva cada vez, aunque ya existiera una playlist armada a mano a la
+  // que simplemente se le quería agregar más temas.
+  async function abrirFormPlaylist() {
+    setMostrarFormPlaylist(true);
+    setPlaylistDestino("");
+    try {
+      let query = supabase.from("playlists").select("id, nombre").order("nombre");
+      if (perfil?.rol !== "admin") query = query.eq("creado_por", session?.user.id ?? "");
+      const { data, error } = await query;
+      if (!error && data) setPlaylistsPropias(data as { id: string; nombre: string }[]);
+    } catch {
+      // Si esto falla, el selector queda vacío (solo "Nueva playlist") —
+      // no bloquea poder crear una nueva igual.
+    }
+  }
+
   async function guardarComoPlaylist() {
-    if (!session || seleccion.size === 0 || !nombrePlaylist.trim()) return;
+    if (!session || seleccion.size === 0) return;
+    if (!playlistDestino && !nombrePlaylist.trim()) return;
     setGuardandoPlaylist(true);
     setAvisoAccion(null);
     try {
-      const nuevaPlaylist: PlaylistInsert = {
-        nombre: nombrePlaylist.trim(),
-        creado_por: session.user.id,
-      };
-      const { data: playlist, error: errPlaylist } = await supabase
-        .from("playlists")
-        .insert(nuevaPlaylist)
-        .select()
-        .single();
-      if (errPlaylist || !playlist) throw new Error(errPlaylist?.message ?? "No se pudo crear la playlist.");
+      if (playlistDestino) {
+        // Sumar a una playlist que ya existe, en vez de crear una nueva.
+        const nombreDestino = playlistsPropias.find((p) => p.id === playlistDestino)?.nombre ?? "la playlist";
 
-      const filas: PlaylistTrackInsert[] = [...seleccion].map((trackId, i) => ({
-        playlist_id: playlist.id as string,
-        track_id: trackId,
-        orden: i,
-      }));
-      const { error: errTracks } = await supabase.from("playlist_tracks").insert(filas);
-      if (errTracks) throw new Error(errTracks.message);
+        // El primary key es (playlist_id, track_id) — si alguno de los
+        // seleccionados ya estaba en esta playlist, insertarlo de nuevo
+        // rompería el insert ENTERO. Se consultan los que ya tiene y se
+        // sacan de la tanda, en vez de dejar que falle.
+        const { data: existentes } = await supabase
+          .from("playlist_tracks")
+          .select("track_id, orden")
+          .eq("playlist_id", playlistDestino);
+        const idsExistentes = new Set((existentes ?? []).map((f) => f.track_id as string));
+        const ordenBase =
+          (existentes ?? []).reduce((max, f) => Math.max(max, f.orden as number), -1) + 1;
+        const nuevos = [...seleccion].filter((id) => !idsExistentes.has(id));
 
-      setAvisoAccion(`Playlist "${playlist.nombre}" creada con ${filas.length} tracks.`);
+        if (nuevos.length === 0) {
+          setAvisoAccion(`Todos los temas seleccionados ya estaban en "${nombreDestino}".`);
+        } else {
+          const filas: PlaylistTrackInsert[] = nuevos.map((trackId, i) => ({
+            playlist_id: playlistDestino,
+            track_id: trackId,
+            orden: ordenBase + i,
+          }));
+          const { error: errTracks } = await supabase.from("playlist_tracks").insert(filas);
+          if (errTracks) throw new Error(errTracks.message);
+
+          const salteados = seleccion.size - nuevos.length;
+          setAvisoAccion(
+            salteados > 0
+              ? `Se agregaron ${nuevos.length} tema(s) a "${nombreDestino}" (${salteados} ya estaban).`
+              : `Se agregaron ${nuevos.length} tema(s) a "${nombreDestino}".`,
+          );
+        }
+      } else {
+        const nuevaPlaylist: PlaylistInsert = {
+          nombre: nombrePlaylist.trim(),
+          creado_por: session.user.id,
+        };
+        const { data: playlist, error: errPlaylist } = await supabase
+          .from("playlists")
+          .insert(nuevaPlaylist)
+          .select()
+          .single();
+        if (errPlaylist || !playlist) throw new Error(errPlaylist?.message ?? "No se pudo crear la playlist.");
+
+        const filas: PlaylistTrackInsert[] = [...seleccion].map((trackId, i) => ({
+          playlist_id: playlist.id as string,
+          track_id: trackId,
+          orden: i,
+        }));
+        const { error: errTracks } = await supabase.from("playlist_tracks").insert(filas);
+        if (errTracks) throw new Error(errTracks.message);
+
+        setAvisoAccion(`Playlist "${playlist.nombre}" creada con ${filas.length} tracks.`);
+      }
+
       setMostrarFormPlaylist(false);
       setNombrePlaylist("");
+      setPlaylistDestino("");
       setSeleccion(new Set());
     } catch (e) {
       setAvisoAccion(mensajeErrorAmigable(e));
@@ -1005,7 +1069,7 @@ export default function CatalogoPage() {
           </button>
           <button
             type="button"
-            onClick={() => setMostrarFormPlaylist(true)}
+            onClick={() => void abrirFormPlaylist()}
             className="text-sm font-semibold bg-transparent text-cream px-2 py-2 appearance-none border-none cursor-pointer underline whitespace-nowrap"
           >
             <span className="sm:hidden">Playlist</span>
@@ -1024,15 +1088,38 @@ export default function CatalogoPage() {
       {mostrarFormPlaylist && (
         <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50 px-4">
           <div className="bg-card rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4">
-            <h2 className="font-display font-bold text-lg m-0">Nueva playlist</h2>
-            <input
-              type="text"
-              autoFocus
-              value={nombrePlaylist}
-              onChange={(e) => setNombrePlaylist(e.target.value)}
-              placeholder="Nombre de la playlist"
-              className="px-3 py-2.5 rounded-lg border border-border text-sm bg-cream-soft"
-            />
+            <h2 className="font-display font-bold text-lg m-0">
+              {playlistDestino ? "Sumar a playlist" : "Nueva playlist"}
+            </h2>
+
+            {playlistsPropias.length > 0 && (
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-body">Destino</label>
+                <select
+                  value={playlistDestino}
+                  onChange={(e) => setPlaylistDestino(e.target.value)}
+                  className="px-3 py-2.5 rounded-lg border border-border text-sm bg-cream-soft"
+                >
+                  <option value="">— Nueva playlist —</option>
+                  {playlistsPropias.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {!playlistDestino && (
+              <input
+                type="text"
+                autoFocus
+                value={nombrePlaylist}
+                onChange={(e) => setNombrePlaylist(e.target.value)}
+                placeholder="Nombre de la playlist"
+                className="px-3 py-2.5 rounded-lg border border-border text-sm bg-cream-soft"
+              />
+            )}
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
@@ -1044,10 +1131,10 @@ export default function CatalogoPage() {
               <button
                 type="button"
                 onClick={guardarComoPlaylist}
-                disabled={guardandoPlaylist || !nombrePlaylist.trim()}
+                disabled={guardandoPlaylist || (!playlistDestino && !nombrePlaylist.trim())}
                 className="text-sm font-semibold px-4 py-2 rounded-lg bg-accent text-white appearance-none border-none cursor-pointer disabled:opacity-60"
               >
-                {guardandoPlaylist ? "Guardando…" : "Crear"}
+                {guardandoPlaylist ? "Guardando…" : playlistDestino ? "Agregar" : "Crear"}
               </button>
             </div>
           </div>
