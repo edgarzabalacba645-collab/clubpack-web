@@ -740,7 +740,10 @@ function CatalogoCompletoTab() {
           .from("tracks")
           .select("id, titulo, remixer, genero, bpm, estado, fecha_subida, subido_por, perfiles(nombre_dj, email)")
           .order("fecha_subida", { ascending: false })
-          .limit(500);
+          // Mismo motivo que en el límite del Catálogo (ver CatalogoPage):
+          // con el crecimiento del catálogo, un tope bajo termina
+          // ocultando los tracks más viejos de este panel también.
+          .limit(5000);
         if (error) throw error;
         setTracks((data ?? []) as unknown as TrackCompleto[]);
       } catch (e) {

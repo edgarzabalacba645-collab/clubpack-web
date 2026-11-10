@@ -229,7 +229,13 @@ export default function CatalogoPage() {
       if (bpmMin) query = query.gte("bpm", Number(bpmMin));
       if (bpmMax) query = query.lte("bpm", Number(bpmMax));
 
-      const { data, error } = await query.limit(300);
+      // Antes estaba en 300 — el catálogo ya superó esa cantidad de
+      // tracks activos, así que los temas más viejos (se ordena por
+      // fecha_subida desc) habían dejado de aparecer en el Catálogo:
+      // no se podían ni buscar ni descargar desde acá, aunque siguieran
+      // existiendo. 5000 da margen de sobra para el crecimiento del
+      // grupo sin volver a toparse con esto.
+      const { data, error } = await query.limit(5000);
 
       if (error) {
         setError(mensajeErrorAmigable(error));
