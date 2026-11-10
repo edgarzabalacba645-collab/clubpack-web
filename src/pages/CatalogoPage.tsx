@@ -363,6 +363,19 @@ export default function CatalogoPage() {
   async function guardarComoPlaylist() {
     if (!session || seleccion.size === 0) return;
     if (!playlistDestino && !nombrePlaylist.trim()) return;
+    // Chequeo propio ANTES de intentar el insert: si la cuenta no tiene
+    // acceso activo, el insert de todas formas lo va a rechazar la policy
+    // RLS "crear_playlist_con_acceso" (tiene_acceso_activo() and
+    // creado_por = auth.uid()) — pero con un mensaje de Postgres en
+    // inglés que no dice nada ("new row violates row-level security
+    // policy for table playlists"). Avisando esto acá, antes, el motivo
+    // real queda claro al toque.
+    if (!perfil || (perfil.estado_suscripcion !== "activo" && perfil.rol !== "admin")) {
+      setAvisoAccion(
+        "Tu cuenta no tiene una suscripción activa, así que todavía no podés crear ni sumar temas a playlists.",
+      );
+      return;
+    }
     setGuardandoPlaylist(true);
     setAvisoAccion(null);
     try {
