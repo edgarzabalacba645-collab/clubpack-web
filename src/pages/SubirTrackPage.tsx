@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { CAMELOT_KEYS, formatearDuracion } from "../lib/format";
+import { CAMELOT_KEYS, formatearDuracion, tituloDesdeNombreArchivo } from "../lib/format";
 import { useSubida } from "../lib/subida";
 import CargaMasiva from "../components/CargaMasiva";
 import AudioPreviewLocal from "../components/AudioPreviewLocal";
@@ -111,7 +111,13 @@ export default function SubirTrackPage() {
             type="file"
             accept="audio/*"
             disabled={fase !== "formulario"}
-            onChange={(e) => setArchivo(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              setArchivo(f);
+              // Precarga el título a partir del nombre del archivo, igual
+              // que en la carga masiva — el DJ lo puede corregir después.
+              if (f) setTitulo(tituloDesdeNombreArchivo(f.name));
+            }}
             className="hidden"
             id="archivo"
           />

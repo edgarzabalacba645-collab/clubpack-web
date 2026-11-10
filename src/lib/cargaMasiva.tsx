@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "./supabase";
 import { ApiError, analizarTrack, confirmarSubida, type DuplicadoCandidato } from "./api";
-import { mensajeErrorAmigable } from "./format";
+import { mensajeErrorAmigable, tituloDesdeNombreArchivo } from "./format";
 import type { Genero } from "./types";
 
 export type EstadoFila = "pendiente" | "analizando" | "revision" | "subiendo" | "listo" | "error";
@@ -30,17 +30,6 @@ export interface FilaMasiva {
   tieneCaratulaOriginal: boolean;
   caratulaPreview: string | null;
   usarCaratulaOriginal: boolean;
-}
-
-function tituloDesdeNombreArchivo(nombre: string): string {
-  const sinExtension = nombre.replace(/\.[^/.]+$/, "");
-  let titulo = sinExtension.replace(/_+/g, " ").trim();
-  // Saca el número de pista inicial que traen los rips de CD completos
-  // ("01 - Nombre", "01. Nombre", "01 Nombre", "1) Nombre"), pero solo
-  // cuando hay separador claro después del número — si no, puede ser
-  // parte real del título (ej. "2step", "138 bpm") y se deja como está.
-  titulo = titulo.replace(/^\d{1,3}(?:[-._)]|\s)+/, "").trim();
-  return titulo;
 }
 
 function idFila(): string {

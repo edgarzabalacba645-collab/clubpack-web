@@ -1,3 +1,19 @@
+/**
+ * Título sugerido a partir del nombre del archivo — usado tanto en la
+ * carga individual como en la masiva, para que las dos se comporten
+ * igual. Saca la extensión, cambia guiones bajos por espacios y, si
+ * viene de un rip de CD completo ("01 - Nombre", "01. Nombre"), saca el
+ * número de pista inicial — pero solo cuando hay separador claro
+ * después del número, porque si no puede ser parte real del título
+ * (ej. "2step", "138 bpm").
+ */
+export function tituloDesdeNombreArchivo(nombre: string): string {
+  const sinExtension = nombre.replace(/\.[^/.]+$/, "");
+  let titulo = sinExtension.replace(/_+/g, " ").trim();
+  titulo = titulo.replace(/^\d{1,3}(?:[-._)]|\s)+/, "").trim();
+  return titulo;
+}
+
 export function formatearDuracion(seg: number | null): string {
   if (seg == null) return "—";
   const m = Math.floor(seg / 60);
