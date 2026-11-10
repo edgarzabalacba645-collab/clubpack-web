@@ -231,7 +231,7 @@ function IconRepetir() {
  * hay un track activo.
  */
 function BarraReproductor() {
-  const { trackActual, estado, error, modoContinuo, toggleModoContinuo, contenedorRef, togglePlay, cerrar } =
+  const { trackActual, estado, error, modoContinuo, toggleModoContinuo, registro, contenedorRef, togglePlay, cerrar } =
     usePlayer();
   const [descargando, setDescargando] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
@@ -335,6 +335,23 @@ function BarraReproductor() {
           los íconos de arriba. */}
       {(errorDescarga || error) && (
         <p className="text-xs text-accent m-0 break-words">{errorDescarga ?? error}</p>
+      )}
+
+      {/* Registro técnico temporal — para diagnosticar el bug de pantalla
+          bloqueada sin tener acceso a la consola del celular. Sacar una
+          vez resuelto. Colapsado por defecto, no molesta a nadie que no
+          lo abra a propósito. */}
+      {registro.length > 0 && (
+        <details className="text-[10px] text-muted">
+          <summary className="cursor-pointer select-none">Ver registro técnico ({registro.length})</summary>
+          <div className="mt-1 max-h-40 overflow-y-auto bg-cream-soft rounded-lg p-2 flex flex-col gap-0.5 font-mono">
+            {registro.map((linea, i) => (
+              <div key={i} className="break-words">
+                {linea}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );
