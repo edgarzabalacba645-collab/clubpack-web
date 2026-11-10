@@ -224,7 +224,31 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     try {
       ws.setMuted(true);
       await ws.play();
-      await new Promise((r) => setTimeout(r, 150));
+      // Destapar el audio recién cuando el navegador confirma que avanzó
+      // de verdad (evento nativo "timeupdate"), NO después de un tiempo
+      // fijo con setTimeout como se hacía antes. Motivo: con la pantalla
+      // bloqueada, Chrome puede frenar/demorar los timers de una pestaña
+      // en segundo plano mucho más que esos 150ms — y si ese setTimeout
+      // nunca llega a disparar, el audio queda mudo para siempre (suena,
+      // reproduce, pero sin volumen) hasta que se desbloquea el celular
+      // y se reintenta desde la app. Esto explica el síntoma reportado:
+      // "pausa funciona, pero play no vuelve a sonar hasta desbloquear".
+      // timeupdate en cambio sí sigue llegando en segundo plano (ya se
+      // usa más abajo para setPositionState mientras el tema suena con
+      // la pantalla bloqueada), así que no depende de que un timer
+      // dispare puntual — y si por algo rarísimo no llegara, el setTimeout
+      // de 1.5s es solo una red de seguridad, no el camino principal.
+      await new Promise<void>((resolve) => {
+        let resuelto = false;
+        const destapar = () => {
+          if (resuelto) return;
+          resuelto = true;
+          cancelarSuscripcion();
+          resolve();
+        };
+        const cancelarSuscripcion = ws.once("timeupdate", destapar);
+        setTimeout(destapar, 1500);
+      });
       ws.setMuted(false);
     } catch {
       ws.setMuted(false);
