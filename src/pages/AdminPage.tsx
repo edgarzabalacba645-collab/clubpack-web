@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import {
@@ -721,12 +721,15 @@ interface TrackCompleto {
   bpm: number | null;
   estado: EstadoTrack;
   fecha_subida: string;
+  subido_por: string | null;
+  perfiles: { nombre_dj: string | null; email: string | null } | null;
 }
 
 function CatalogoCompletoTab() {
   const [tracks, setTracks] = useState<TrackCompleto[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filtroUsuario, setFiltroUsuario] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -735,11 +738,11 @@ function CatalogoCompletoTab() {
       try {
         const { data, error } = await supabase
           .from("tracks")
-          .select("id, titulo, remixer, genero, bpm, estado, fecha_subida")
+          .select("id, titulo, remixer, genero, bpm, estado, fecha_subida, subido_por, perfiles(nombre_dj, email)")
           .order("fecha_subida", { ascending: false })
           .limit(500);
         if (error) throw error;
-        setTracks((data ?? []) as TrackCompleto[]);
+        setTracks((data ?? []) as unknown as TrackCompleto[]);
       } catch (e) {
         setError(mensajeErrorAmigable(e));
       } finally {
@@ -748,18 +751,59 @@ function CatalogoCompletoTab() {
     })();
   }, []);
 
+  // Quién subió cada track, para la lista desplegable del filtro — se
+  // arma de los temas ya cargados en vez de pedir /perfiles aparte, así
+  // solo aparecen usuarios que efectivamente subieron algo al catálogo.
+  const usuarios = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const t of tracks) {
+      if (!t.subido_por) continue;
+      mapa.set(t.subido_por, t.perfiles?.nombre_dj || t.perfiles?.email || "(sin nombre)");
+    }
+    return Array.from(mapa.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [tracks]);
+
+  const tracksFiltrados = filtroUsuario
+    ? tracks.filter((t) => t.subido_por === filtroUsuario)
+    : tracks;
+
   if (cargando) return <p className="text-sm text-muted m-0">Cargando…</p>;
   if (error) return <p className="text-sm text-accent font-medium m-0">{error}</p>;
 
   return (
     <div className="flex flex-col gap-4">
       <PeaksPendientesPanel />
+
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-semibold text-body">Subido por</label>
+        <select
+          value={filtroUsuario}
+          onChange={(e) => setFiltroUsuario(e.target.value)}
+          className="px-3 py-1.5 rounded-lg border border-border text-sm bg-cream-soft"
+        >
+          <option value="">Todos</option>
+          {usuarios.map(([id, nombre]) => (
+            <option key={id} value={id}>
+              {nombre}
+            </option>
+          ))}
+        </select>
+        {filtroUsuario && (
+          <span className="text-xs text-muted">
+            {tracksFiltrados.length} tema{tracksFiltrados.length === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+
       <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
-        {tracks.map((t) => (
+        {tracksFiltrados.map((t) => (
           <div key={t.id} className="flex items-center gap-4 px-5 py-3 border-b border-border-soft last:border-b-0">
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-sm truncate">{t.titulo}</div>
               <div className="text-xs text-muted truncate">{t.remixer || "—"}</div>
+            </div>
+            <div className="hidden md:block text-xs text-muted w-28 shrink-0 truncate">
+              {t.perfiles?.nombre_dj || t.perfiles?.email || "—"}
             </div>
             <div className="hidden sm:block text-xs text-muted w-24 shrink-0">{t.genero || "—"}</div>
             <div className="hidden sm:block text-xs text-muted w-16 shrink-0 text-right">
