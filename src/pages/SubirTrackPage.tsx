@@ -40,11 +40,20 @@ export default function SubirTrackPage() {
     tituloSubido,
     reiniciarTodo,
     volverAFormulario,
+    recargarGeneros,
     handleAnalizar,
     handleConfirmar,
   } = useSubida();
 
   const inputArchivoRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    // Trae la lista de géneros al día cada vez que se entra a esta
+    // pantalla — ver el comentario en subida.tsx sobre por qué el
+    // contexto por sí solo no alcanza para esto.
+    recargarGeneros();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // El <input type="file"> es un elemento del DOM de esta página, no

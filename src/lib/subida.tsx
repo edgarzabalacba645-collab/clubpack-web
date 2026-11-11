@@ -40,6 +40,7 @@ interface SubidaContextValue {
 
   reiniciarTodo: () => void;
   volverAFormulario: () => void;
+  recargarGeneros: () => Promise<void>;
   handleAnalizar: () => Promise<void>;
   handleAnalizarDesdeChat: (mensajeId: string, nombreOriginal: string) => Promise<void>;
   handleConfirmar: () => Promise<void>;
@@ -79,19 +80,30 @@ export function SubidaProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [tituloSubido, setTituloSubido] = useState("");
 
+  // Extraído a función aparte (y expuesto como recargarGeneros) porque este
+  // contexto se monta una sola vez, arriba de todas las rutas (ver App.tsx),
+  // así que un useEffect con [] solo trae los géneros UNA vez por sesión.
+  // Antes eso significaba que un género recién creado en Admin > Géneros no
+  // aparecía en el selector de "Subir Track" hasta recargar toda la página
+  // (sí se veía en Catálogo porque esa pantalla se desmonta/remonta y
+  // vuelve a pedir los géneros cada vez que se entra). Ahora SubirTrackPage
+  // llama a recargarGeneros() cada vez que se monta, así siempre trae la
+  // lista al día sin depender de un refresh completo.
+  async function cargarGeneros() {
+    try {
+      const { data, error } = await supabase
+        .from("generos")
+        .select("*")
+        .eq("activo", true)
+        .order("orden");
+      if (!error && data) setGeneros(data);
+    } catch {
+      // el selector de género simplemente queda con lo que ya tenía si esto falla
+    }
+  }
+
   useEffect(() => {
-    (async () => {
-      try {
-        const { data, error } = await supabase
-          .from("generos")
-          .select("*")
-          .eq("activo", true)
-          .order("orden");
-        if (!error && data) setGeneros(data);
-      } catch {
-        // el selector de género simplemente queda vacío si esto falla
-      }
-    })();
+    cargarGeneros();
   }, []);
 
   function reiniciarTodo() {
@@ -265,6 +277,7 @@ export function SubidaProvider({ children }: { children: ReactNode }) {
         tituloSubido,
         reiniciarTodo,
         volverAFormulario,
+        recargarGeneros: cargarGeneros,
         handleAnalizar,
         handleAnalizarDesdeChat,
         handleConfirmar,
