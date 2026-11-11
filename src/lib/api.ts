@@ -163,6 +163,25 @@ export function descargarPlaylistZip(playlistId: string) {
   return apiFetchJson<DescargaMultipleResponse>(`/playlists/${playlistId}/zip`, { method: "POST" });
 }
 
+// ---- Chat: audio adjunto (mp3/wav/flac, sin transcodificar — R2 por las credenciales) ----
+
+export interface AudioChatSubido {
+  storage_path: string;
+  nombre_original: string;
+  tamano_mb: number;
+  duracion_seg: number | null;
+}
+
+export function subirAudioChat(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiFetchJson<AudioChatSubido>("/chat/audio", { method: "POST", body: form });
+}
+
+export function obtenerUrlAudioChat(mensajeId: string) {
+  return apiFetchJson<{ url: string }>(`/chat/mensajes/${mensajeId}/audio-url`);
+}
+
 // ---- Suscripción: Mercado Pago ----
 // (La configuración de precio/CBU y el aviso de transferencia manual van
 // directo contra Supabase desde las páginas — no necesitan pasar por acá.

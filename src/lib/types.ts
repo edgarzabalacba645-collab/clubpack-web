@@ -49,6 +49,13 @@ export interface MensajeChat {
   usuario_id: string;
   mensaje: string;
   fecha: string;
+  // Audio adjunto (mp3/wav/flac) — ver sql/011_chat_audio.sql. La key en
+  // R2 la obtiene el backend (POST /chat/audio); el resto viaja en el
+  // mismo insert que el texto del mensaje.
+  audio_storage_path: string | null;
+  audio_nombre_original: string | null;
+  audio_tamano_mb: number | null;
+  audio_duracion_seg: number | null;
   // Solo viene cuando se pide con el join a perfiles (ver ChatPage).
   perfiles?: { nombre_dj: string | null; email: string | null } | null;
 }
@@ -184,7 +191,8 @@ export type ConfiguracionCatalogoUpdate = Partial<
 
 export type PagoUpdate = Partial<Pick<Pago, "estado" | "confirmado_por">>;
 
-export type MensajeChatInsert = Pick<MensajeChat, "usuario_id" | "mensaje">;
+export type MensajeChatInsert = Pick<MensajeChat, "usuario_id" | "mensaje"> &
+  Partial<Pick<MensajeChat, "audio_storage_path" | "audio_nombre_original" | "audio_tamano_mb" | "audio_duracion_seg">>;
 
 export type HerramientaDJInsert = Pick<HerramientaDJ, "nombre" | "link_descarga"> &
   Partial<Omit<HerramientaDJ, "id" | "nombre" | "link_descarga" | "fecha_creacion">>;
