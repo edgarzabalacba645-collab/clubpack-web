@@ -120,6 +120,13 @@ export default function CatalogoPage() {
   const [searchParams] = useSearchParams();
   const [tracks, setTracks] = useState<TrackFila[]>([]);
   const [generos, setGeneros] = useState<Genero[]>([]);
+  // Cantidad de tracks activos por género, para mostrar al lado de cada
+  // pill (ver más abajo) — independiente de `tracks` a propósito: ese
+  // estado es la lista YA FILTRADA (por búsqueda/género/bpm/key) que se
+  // ve en la tabla, así que contar desde ahí daría 0 en todos los géneros
+  // menos el seleccionado. Esto en cambio es siempre el total real del
+  // catálogo completo.
+  const [conteoGeneros, setConteoGeneros] = useState<Record<string, number>>({});
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -186,7 +193,27 @@ export default function CatalogoPage() {
         // el filtro de género simplemente queda vacío si esto falla
       }
     })();
+    cargarConteoGeneros();
   }, []);
+
+  // Trae solo la columna genero_id de todos los tracks activos (liviano,
+  // sin joins) y cuenta a mano cuántos hay por género — Supabase no deja
+  // pedir un GROUP BY directo desde el cliente. Se llama al entrar a la
+  // página y después de cualquier acción que pueda correr un track de
+  // género (editarlo) o sacarlo del catálogo (borrarlo).
+  async function cargarConteoGeneros() {
+    try {
+      const { data, error } = await supabase.from("tracks").select("genero_id").eq("estado", "activo");
+      if (error || !data) return;
+      const conteo: Record<string, number> = {};
+      for (const fila of data as { genero_id: string | null }[]) {
+        if (fila.genero_id) conteo[fila.genero_id] = (conteo[fila.genero_id] ?? 0) + 1;
+      }
+      setConteoGeneros(conteo);
+    } catch {
+      // los badges de cantidad simplemente no se muestran si esto falla
+    }
+  }
 
   useEffect(() => {
     // Si el buscador del header manda a /catalogo?q=... estando ya en esta
@@ -494,6 +521,7 @@ export default function CatalogoPage() {
       setAvisoAccion(`"${edTitulo.trim()}" actualizado.`);
       setEditando(null);
       await cargarTracks();
+      cargarConteoGeneros();
     } catch (e) {
       setAvisoAccion(mensajeErrorAmigable(e));
     } finally {
@@ -509,6 +537,7 @@ export default function CatalogoPage() {
       setConfirmandoBorrarId(null);
       setTracks((prev) => prev.filter((t) => t.id !== track.id));
       setAvisoAccion(`"${track.titulo}" se borró del catálogo.`);
+      cargarConteoGeneros();
     } catch (e) {
       setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo borrar el track.");
     } finally {
@@ -726,7 +755,7 @@ export default function CatalogoPage() {
                   : `border-none ${badgeGenero(i)}`
               }`}
             >
-              {g.nombre}
+              {g.nombre} ({conteoGeneros[g.id] ?? 0})
             </button>
           ))}
         </div>
