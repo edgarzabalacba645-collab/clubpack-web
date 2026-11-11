@@ -134,6 +134,15 @@ export default function CatalogoPage() {
   // elegir un género el encabezado mostraba solo esa cantidad, no el
   // total de la plataforma).
   const [totalCatalogo, setTotalCatalogo] = useState<number | null>(null);
+  // Ids de los hasta 10 tracks de Cachengue subidos más recientemente —
+  // la única escucha gratuita sin suscripción (ver
+  // sql/012_freemium_v2_vidriera.sql). El resto del catálogo ahora se VE
+  // igual (es la "vidriera"), pero solo se puede escuchar esto.
+  const [muestraGratisIds, setMuestraGratisIds] = useState<Set<string>>(new Set());
+  // Mensaje del modal "necesitás suscripción" (null = cerrado). Un solo
+  // modal reutilizado para reproducir/bajar/playlist, con el texto que
+  // corresponda a cada caso.
+  const [avisoSuscripcion, setAvisoSuscripcion] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -201,7 +210,33 @@ export default function CatalogoPage() {
       }
     })();
     cargarConteoGeneros();
+    cargarMuestraGratis();
   }, []);
+
+  // Trae los ids de la muestra gratuita (ver sql/012_freemium_v2_vidriera.sql
+  // -> obtener_muestra_gratis_cachengue). Si falla o viene vacía, simplemente
+  // nadie sin suscripción puede escuchar nada — no rompe el resto de la
+  // página.
+  async function cargarMuestraGratis() {
+    try {
+      const { data, error } = await supabase.rpc("obtener_muestra_gratis_cachengue");
+      if (!error && data) {
+        setMuestraGratisIds(new Set((data as { track_id: string }[]).map((f) => f.track_id)));
+      }
+    } catch {
+      // ver comentario de arriba
+    }
+  }
+
+  // true si ESTE usuario puede escuchar ESTE track puntual — acceso
+  // activo (o admin), o está en la muestra gratuita de arriba. Espejo en
+  // el cliente de la función SQL puede_escuchar_track, que es la que de
+  // verdad manda (ver app/routers/tracks.py:obtener_url_descarga): esto
+  // es solo para decidir la UI (qué botón mostrar activo) sin tener que
+  // esperar una ida y vuelta al backend para saberlo.
+  function puedeEscucharTrack(track: TrackFila): boolean {
+    return tieneAccesoActivo(perfil) || muestraGratisIds.has(track.id);
+  }
 
   // Trae solo la columna genero_id de todos los tracks activos (liviano,
   // sin joins) y cuenta a mano cuántos hay por género — Supabase no deja
@@ -318,6 +353,17 @@ export default function CatalogoPage() {
       return;
     }
 
+    // Sin esto, el click igual terminaba fallando al llamar al backend
+    // (puede_escuchar_track — ver sql/012_freemium_v2_vidriera.sql), pero
+    // con un error genérico en vez de invitar a suscribirse. Chequear acá
+    // antes evita encima el viaje de ida y vuelta.
+    if (!puedeEscucharTrack(track)) {
+      setAvisoSuscripcion(
+        "Para escuchar este tema necesitás una suscripción activa. Mientras tanto, podés escuchar gratis los últimos 10 temas de Cachengue.",
+      );
+      return;
+    }
+
     setAvisoAccion(null);
     setCargandoPreviewId(track.id);
     try {
@@ -336,8 +382,12 @@ export default function CatalogoPage() {
           // La cola es el catálogo tal cual está filtrado en este momento
           // (no solo la página actual) — en reproducción continua sigue
           // uno detrás del otro por todo lo filtrado, no solo lo
-          // paginado en pantalla.
-          cola: tracks.map((t) => ({
+          // paginado en pantalla. Sin acceso activo, el catálogo
+          // filtrado puede tener cualquier track (ahora es la vidriera
+          // completa — ver sql/012_freemium_v2_vidriera.sql), así que la
+          // cola se acota a la muestra gratuita para no intentar pasar a
+          // un tema que después el backend va a rechazar igual.
+          cola: (tieneAccesoActivo(perfil) ? tracks : tracks.filter((t) => muestraGratisIds.has(t.id))).map((t) => ({
             id: t.id,
             titulo: t.titulo,
             artista_original: t.artista_original,
@@ -358,6 +408,13 @@ export default function CatalogoPage() {
   }
 
   async function descargarIndividual(track: TrackFila) {
+    // La descarga real nunca entra en la muestra gratuita (ver
+    // sql/012_freemium_v2_vidriera.sql) — a diferencia de reproducir, acá
+    // no importa qué track sea, solo si hay suscripción activa.
+    if (!tieneAccesoActivo(perfil)) {
+      setAvisoSuscripcion("Para descargar necesitás una suscripción activa.");
+      return;
+    }
     setDescargando(track.id);
     setAvisoAccion(null);
     try {
@@ -372,6 +429,10 @@ export default function CatalogoPage() {
 
   async function descargarSeleccionZip() {
     if (seleccion.size === 0) return;
+    if (!tieneAccesoActivo(perfil)) {
+      setAvisoSuscripcion("Para descargar necesitás una suscripción activa.");
+      return;
+    }
     setProcesandoZip(true);
     setAvisoAccion(null);
     try {
@@ -389,6 +450,10 @@ export default function CatalogoPage() {
   // nueva cada vez, aunque ya existiera una playlist armada a mano a la
   // que simplemente se le quería agregar más temas.
   async function abrirFormPlaylist() {
+    if (!tieneAccesoActivo(perfil)) {
+      setAvisoSuscripcion("Para armar playlists necesitás una suscripción activa.");
+      return;
+    }
     setMostrarFormPlaylist(true);
     setPlaylistDestino("");
     setAvisoAccion(null);
@@ -725,14 +790,16 @@ export default function CatalogoPage() {
       )}
 
       {/* Aviso de acceso gratuito limitado — solo para quien todavía no tiene
-          suscripción activa. Puede escuchar Cuarteto/Cachengue sin pagar
-          (ver policy "ver_tracks_con_acceso" en sql/006_*.sql); el resto del
-          catálogo y cualquier descarga quedan atrás de la suscripción. */}
+          suscripción activa. Desde sql/012_freemium_v2_vidriera.sql ya se ve
+          el catálogo completo (es la vidriera) sin pagar, pero lo único que
+          se puede ESCUCHAR son los últimos 10 temas de Cachengue — el resto
+          (escuchar cualquier otro tema, descargar lo que sea, armar
+          playlists) sigue atrás de la suscripción. */}
       {perfil && perfil.estado_suscripcion !== "activo" && perfil.rol !== "admin" && (
         <p className="text-sm bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 m-0">
-          Por ahora podés escuchar gratis los temas de <strong>Cuarteto</strong> y{" "}
-          <strong>Cachengue</strong>. Para ver todo el catálogo y descargar, necesitás una
-          suscripción mensual —{" "}
+          Ya podés ver todo el catálogo. Por ahora, sin suscripción, podés escuchar gratis los{" "}
+          <strong>últimos 10 temas de Cachengue</strong>. Para escuchar el resto, descargar y armar
+          playlists, necesitás una suscripción mensual —{" "}
           <Link to="/suscripcion" className="underline font-semibold">
             suscribite acá
           </Link>
@@ -888,9 +955,16 @@ export default function CatalogoPage() {
                   <div className="relative w-44 h-44 rounded-2xl overflow-hidden border border-border-soft">
                     <Portada path={t.portada_url} alt="" className="w-full h-full object-cover" />
                     <span className="absolute inset-0 bg-ink/0 group-hover:bg-ink/30 transition-colors" />
-                    <span className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-ink-fixed flex items-center justify-center shadow">
+                    <span
+                      title={!puedeEscucharTrack(t) ? "Necesitás una suscripción activa para escuchar esto" : undefined}
+                      className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-ink-fixed flex items-center justify-center shadow"
+                    >
                       {mostrandoSpinner ? (
                         <span className="text-xs">…</span>
+                      ) : !puedeEscucharTrack(t) ? (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2a4 4 0 0 0-4 4v3H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V6a4 4 0 0 0-4-4Zm-2 7V6a2 2 0 1 1 4 0v3Z" />
+                        </svg>
                       ) : esElSonando && player.estado === "sonando" ? (
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                           <rect x="5" y="4" width="5" height="16" />
@@ -977,11 +1051,24 @@ export default function CatalogoPage() {
                 <button
                   type="button"
                   onClick={(e) => reproducir(t, e.currentTarget.closest<HTMLElement>("[data-fila-track]"))}
-                  aria-label={esElSonando && player.estado === "sonando" ? "Pausar" : "Reproducir preview"}
-                  className="shrink-0 w-9 h-9 rounded-full bg-ink text-cream flex items-center justify-center appearance-none border-none cursor-pointer"
+                  aria-label={
+                    !puedeEscucharTrack(t)
+                      ? "Necesitás una suscripción activa para escuchar esto"
+                      : esElSonando && player.estado === "sonando"
+                        ? "Pausar"
+                        : "Reproducir preview"
+                  }
+                  title={!puedeEscucharTrack(t) ? "Necesitás una suscripción activa para escuchar esto" : undefined}
+                  className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center appearance-none border-none cursor-pointer ${
+                    puedeEscucharTrack(t) ? "bg-ink text-cream" : "bg-black/10 dark:bg-white/15 text-muted"
+                  }`}
                 >
                   {mostrandoSpinner ? (
                     <span className="text-xs">…</span>
+                  ) : !puedeEscucharTrack(t) ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2a4 4 0 0 0-4 4v3H7a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-1V6a4 4 0 0 0-4-4Zm-2 7V6a2 2 0 1 1 4 0v3Z" />
+                    </svg>
                   ) : esElSonando && player.estado === "sonando" ? (
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                       <rect x="5" y="4" width="5" height="16" />
@@ -1378,6 +1465,38 @@ export default function CatalogoPage() {
                 {guardandoEdicion ? "Guardando…" : "Guardar cambios"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal "necesitás suscripción" — se dispara al tocar Reproducir
+          (fuera de la muestra gratuita), Bajar o Guardar/Sumar a playlist
+          sin suscripción activa. Pensado para dar ganas de sumarse: ahora
+          que se puede ver TODO el catálogo (ver sql/012_freemium_v2_vidriera.sql)
+          sin cuenta paga, este es el momento de mostrar el precio en vez
+          de dejar el intento picando con un error genérico. */}
+      {avisoSuscripcion && (
+        <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50 px-4">
+          <div className="bg-card rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 text-center items-center">
+            <span className="text-3xl" aria-hidden="true">
+              🔒
+            </span>
+            <h2 className="font-display font-bold text-lg m-0">Necesitás una suscripción activa</h2>
+            <p className="text-sm text-body leading-relaxed m-0">{avisoSuscripcion}</p>
+            <Link
+              to="/suscripcion"
+              onClick={() => setAvisoSuscripcion(null)}
+              className="text-sm font-semibold bg-accent text-white px-6 py-3 rounded-full no-underline w-full"
+            >
+              Suscribirme
+            </Link>
+            <button
+              type="button"
+              onClick={() => setAvisoSuscripcion(null)}
+              className="text-sm font-semibold text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer"
+            >
+              Ahora no
+            </button>
           </div>
         </div>
       )}
