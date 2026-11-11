@@ -298,7 +298,7 @@ function GenerosTab() {
           onChange={(e) => setNombreNuevo(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && agregar()}
           placeholder="Nuevo género, ej: Cuarteto"
-          className="flex-1 px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+          className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
         />
         <button
           type="button"

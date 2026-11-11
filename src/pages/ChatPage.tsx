@@ -73,10 +73,15 @@ function ReproductorAudioChat({ mensaje }: { mensaje: MensajeChat }) {
   }
 
   return (
-    <div className="flex flex-col gap-1.5 min-w-[220px]">
-      <div className="flex items-center gap-2 text-xs opacity-80">
-        <span>🎵</span>
-        <span className="truncate">{mensaje.audio_nombre_original ?? "audio"}</span>
+    <div className="flex flex-col gap-1.5 min-w-0 w-[220px] max-w-full">
+      {/* min-w-0 en la fila y en el span del nombre es lo que deja que
+          "truncate" corte de verdad: un <span> dentro de un flex row no se
+          achica por debajo de su contenido salvo que se le fuerce min-w-0,
+          así que un nombre de archivo largo (sin espacios donde cortar)
+          empujaba todo el mensaje más ancho que la pantalla en el celular. */}
+      <div className="flex items-center gap-2 text-xs opacity-80 min-w-0">
+        <span className="shrink-0">🎵</span>
+        <span className="truncate min-w-0 flex-1">{mensaje.audio_nombre_original ?? "audio"}</span>
         {mensaje.audio_tamano_mb != null && <span className="shrink-0">· {mensaje.audio_tamano_mb}MB</span>}
         {mensaje.audio_duracion_seg != null && (
           <span className="shrink-0">· {formatearDuracionCorta(mensaje.audio_duracion_seg)}</span>
@@ -311,11 +316,11 @@ export default function ChatPage() {
               return (
                 <div
                   key={m.id}
-                  className={`flex flex-col gap-0.5 max-w-[80%] ${esPropio ? "self-end items-end" : "self-start items-start"}`}
+                  className={`flex flex-col gap-0.5 max-w-[80%] min-w-0 ${esPropio ? "self-end items-end" : "self-start items-start"}`}
                 >
                   {!esPropio && <span className="text-xs font-semibold text-muted px-1">{nombre}</span>}
                   <div
-                    className={`rounded-2xl px-4 py-2.5 text-sm break-words flex flex-col gap-2 ${
+                    className={`rounded-2xl px-4 py-2.5 text-sm break-words overflow-hidden flex flex-col gap-2 ${
                       esPropio ? "bg-ink text-cream" : "bg-cream border border-border-soft"
                     }`}
                   >
@@ -366,7 +371,7 @@ export default function ChatPage() {
             onChange={(e) => setTexto(e.target.value)}
             placeholder={perfil ? `Escribí algo, ${perfil.nombre_dj ?? ""}…` : "Escribí un mensaje…"}
             maxLength={1000}
-            className="flex-1 px-3.5 py-2.5 rounded-xl border border-border text-sm bg-cream-soft focus:outline-2 focus:outline-accent"
+            className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-border text-sm bg-cream-soft focus:outline-2 focus:outline-accent"
           />
           <button
             type="submit"
