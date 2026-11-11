@@ -1,10 +1,15 @@
+import { Link } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { CAMELOT_KEYS, formatearDuracion, tituloDesdeNombreArchivo } from "../lib/format";
+import { useAuth } from "../lib/auth";
+import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { useSubida } from "../lib/subida";
 import CargaMasiva from "../components/CargaMasiva";
 import AudioPreviewLocal from "../components/AudioPreviewLocal";
 
 export default function SubirTrackPage() {
+  const { perfil } = useAuth();
+  const { permiteSubidaColaboradores, cargando: cargandoConfig } = useConfiguracionCatalogo();
   const {
     modo,
     setModo,
@@ -53,6 +58,32 @@ export default function SubirTrackPage() {
 
   const hayDuplicados = (analisis?.duplicados_sospechosos.length ?? 0) > 0;
   const puedeConfirmar = !hayDuplicados || confirmoDuplicado;
+
+  // El admin siempre puede subir — para el resto, si el admin cerró las
+  // subidas (ver sql/010_control_subidas.sql), esto es un cinturón de
+  // seguridad: AppShell ya oculta el botón "Subir Temas", pero alguien
+  // podría llegar igual escribiendo /subir directo. El rechazo real (el
+  // que de verdad importa) es el de RLS/backend al confirmar — esto es
+  // solo para no mostrarle un formulario que después le va a fallar.
+  if (!cargandoConfig && perfil?.rol !== "admin" && !permiteSubidaColaboradores) {
+    return (
+      <div className="flex flex-col items-start gap-3 py-10 max-w-md">
+        <h1 className="font-display font-extrabold text-2xl tracking-[-0.5px] m-0">
+          Las subidas están cerradas por ahora
+        </h1>
+        <p className="text-body text-base leading-relaxed m-0">
+          El administrador del grupo está subiendo los temas a mano mientras el catálogo se acomoda. Mandale el
+          tema por el chat de la comunidad y lo sube él.
+        </p>
+        <Link
+          to="/chat"
+          className="text-sm font-semibold bg-ink text-cream px-5 py-2.5 rounded-full no-underline inline-block"
+        >
+          Ir al chat
+        </Link>
+      </div>
+    );
+  }
 
   if (modo === "masivo") {
     return (

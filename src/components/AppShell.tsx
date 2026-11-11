@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
+import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { usePlayer } from "../lib/player";
 import { formatearDuracion } from "../lib/format";
 import { abrirDescargaDirecta, ApiError, obtenerUrlDescarga } from "../lib/api";
@@ -361,6 +362,10 @@ function sidebarLinkClass({ isActive }: { isActive: boolean }) {
 
 export default function AppShell() {
   const { perfil, signOut } = useAuth();
+  const { permiteSubidaColaboradores } = useConfiguracionCatalogo();
+  // El admin siempre ve el botón de subir (es quien sube cuando está
+  // cerrado para el resto) — ver sql/010_control_subidas.sql.
+  const puedeVerBotonSubir = perfil?.rol === "admin" || permiteSubidaColaboradores;
   const { trackActual } = usePlayer();
   const navigate = useNavigate();
   const [busqueda, setBusqueda] = useState("");
@@ -429,13 +434,15 @@ export default function AppShell() {
 
           <div className="flex-1 md:hidden" />
 
-          <NavLink
-            to="/subir"
-            className="shrink-0 hidden sm:inline-flex items-center gap-2 bg-accent text-white text-sm font-semibold px-4 py-2.5 rounded-full no-underline"
-          >
-            <IconUpload />
-            Subir Temas
-          </NavLink>
+          {puedeVerBotonSubir && (
+            <NavLink
+              to="/subir"
+              className="shrink-0 hidden sm:inline-flex items-center gap-2 bg-accent text-white text-sm font-semibold px-4 py-2.5 rounded-full no-underline"
+            >
+              <IconUpload />
+              Subir Temas
+            </NavLink>
+          )}
 
           <BotonTema className="shrink-0" />
 
@@ -516,14 +523,16 @@ export default function AppShell() {
 
           <div className="flex-1" />
 
-          <NavLink
-            to="/subir"
-            onClick={() => setSidebarAbierto(false)}
-            className="sm:hidden flex items-center justify-center gap-2 bg-accent text-white text-sm font-semibold px-4 py-2.5 rounded-full no-underline mt-2"
-          >
-            <IconUpload />
-            Subir Temas
-          </NavLink>
+          {puedeVerBotonSubir && (
+            <NavLink
+              to="/subir"
+              onClick={() => setSidebarAbierto(false)}
+              className="sm:hidden flex items-center justify-center gap-2 bg-accent text-white text-sm font-semibold px-4 py-2.5 rounded-full no-underline mt-2"
+            >
+              <IconUpload />
+              Subir Temas
+            </NavLink>
+          )}
 
           <div className="rounded-xl bg-cream p-3.5 text-xs text-muted mt-2">
             ClubPack — hecho por DJs, para DJs. Catálogo cerrado, uso privado del grupo.

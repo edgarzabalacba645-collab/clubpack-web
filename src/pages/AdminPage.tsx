@@ -18,6 +18,7 @@ import {
 } from "../lib/api";
 import { formatearBpm, formatearFecha, formatearMonto, mensajeErrorAmigable } from "../lib/format";
 import type {
+  ConfiguracionCatalogo,
   ConfiguracionSuscripcion,
   ConfiguracionSuscripcionUpdate,
   EstadoSuscripcion,
@@ -775,6 +776,7 @@ function CatalogoCompletoTab() {
 
   return (
     <div className="flex flex-col gap-4">
+      <ControlSubidasPanel />
       <PeaksPendientesPanel />
 
       <div className="flex items-center gap-2">
@@ -829,6 +831,92 @@ function CatalogoCompletoTab() {
 // en el backend, y el plan gratis de Render tiene poca memoria — varios
 // a la vez competirían entre sí (mismo motivo que en otras partes del
 // backend, ver app/audio.py).
+function ControlSubidasPanel() {
+  const { session } = useAuth();
+  const [config, setConfig] = useState<ConfiguracionCatalogo | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from("configuracion_catalogo")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      setConfig(data as ConfiguracionCatalogo | null);
+    } catch (e) {
+      setError(mensajeErrorAmigable(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function alternar() {
+    if (!config) return;
+    setGuardando(true);
+    setError(null);
+    try {
+      const { error } = await supabase
+        .from("configuracion_catalogo")
+        .update({
+          permite_subida_colaboradores: !config.permite_subida_colaboradores,
+          actualizado_por: session?.user.id,
+        })
+        .eq("id", true);
+      if (error) throw error;
+      await cargar();
+    } catch (e) {
+      setError(mensajeErrorAmigable(e));
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  if (cargando) return <p className="text-sm text-muted m-0">Cargando…</p>;
+
+  const habilitado = config?.permite_subida_colaboradores ?? true;
+
+  return (
+    <div className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-3">
+      <div>
+        <p className="font-semibold text-sm m-0">Quién puede subir temas</p>
+        <p className="text-sm text-muted m-0">
+          {habilitado
+            ? "Cualquier suscriptor con cuenta activa puede subir temas. El catálogo se muestra como \"colaborativo\"."
+            : "Las subidas quedan cerradas: solo el admin puede subir temas. El botón \"Subir Temas\" se oculta " +
+              "para el resto, y si alguien intenta entrar igual, se le pide que mande el tema por el chat."}
+        </p>
+      </div>
+
+      {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
+
+      <button
+        type="button"
+        onClick={alternar}
+        disabled={guardando || !config}
+        className={`self-start text-sm font-semibold px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60 ${
+          habilitado ? "bg-ink text-cream" : "bg-accent text-white"
+        }`}
+      >
+        {guardando
+          ? "Guardando…"
+          : habilitado
+            ? "Cerrar subidas a suscriptores"
+            : "Habilitar subidas a suscriptores"}
+      </button>
+    </div>
+  );
+}
+
 function PeaksPendientesPanel() {
   const [pendientes, setPendientes] = useState<TrackPendientePeaks[]>([]);
   const [cargando, setCargando] = useState(true);

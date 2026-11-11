@@ -21,6 +21,7 @@ import {
 } from "../lib/format";
 import type { Genero, PlaylistInsert, PlaylistTrackInsert } from "../lib/types";
 import { useAuth, tieneAccesoActivo, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
+import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { usePlayer } from "../lib/player";
 import Portada from "../components/Portada";
 
@@ -113,6 +114,7 @@ function IconoBorrar() {
 
 export default function CatalogoPage() {
   const { session, perfil } = useAuth();
+  const { permiteSubidaColaboradores } = useConfiguracionCatalogo();
   const player = usePlayer();
   const { sidebarEscritorioAbierto } = useOutletContext<AppShellContext>();
   const [searchParams] = useSearchParams();
@@ -640,7 +642,9 @@ export default function CatalogoPage() {
         />
         <div className="relative max-w-xl">
           <h1 className="font-display font-extrabold text-[clamp(1.6rem,3.5vw,2.4rem)] leading-[1.08] tracking-[-0.5px] m-0 text-ink dark:text-white">
-            El catálogo colaborativo de música para DJs
+            {permiteSubidaColaboradores
+              ? "El catálogo colaborativo de música para DJs"
+              : "El catálogo de música para DJs"}
           </h1>
           <p className="mt-3 text-ink/75 dark:text-white/75 text-sm sm:text-base m-0">
             {cargando
@@ -650,18 +654,21 @@ export default function CatalogoPage() {
         </div>
 
         {/* Tagline manuscrito — solo modo oscuro, como en la referencia de diseño.
-            Oculto en mobile: a ese ancho se superpone con el título. */}
-        <p
-          className="hidden dark:sm:block absolute right-9 top-9 font-script text-3xl leading-[1.05] text-white/90 rotate-[-4deg] m-0 text-right"
-          style={{ textShadow: "0 2px 10px rgba(0,0,0,0.35)" }}
-          aria-hidden="true"
-        >
-          Juntos
-          <br />
-          hacemos crecer
-          <br />
-          el catálogo
-        </p>
+            Oculto en mobile: a ese ancho se superpone con el título. Solo
+            tiene sentido mientras la subida es colaborativa de verdad. */}
+        {permiteSubidaColaboradores && (
+          <p
+            className="hidden dark:sm:block absolute right-9 top-9 font-script text-3xl leading-[1.05] text-white/90 rotate-[-4deg] m-0 text-right"
+            style={{ textShadow: "0 2px 10px rgba(0,0,0,0.35)" }}
+            aria-hidden="true"
+          >
+            Juntos
+            <br />
+            hacemos crecer
+            <br />
+            el catálogo
+          </p>
+        )}
       </div>
 
       {/* Aviso de acceso gratuito limitado — solo para quien todavía no tiene

@@ -100,6 +100,15 @@ export interface ConfiguracionSuscripcion {
   actualizado_en: string;
 }
 
+// Fila única (singleton, id siempre `true`) con configuración general
+// del catálogo — ver sql/010_control_subidas.sql.
+export interface ConfiguracionCatalogo {
+  id: true;
+  permite_subida_colaboradores: boolean;
+  actualizado_por: string | null;
+  actualizado_en: string;
+}
+
 export interface DuplicadoDetectado {
   id: string;
   track_id_a: string;
@@ -167,6 +176,10 @@ export interface PagoManualInsert {
 
 export type ConfiguracionSuscripcionUpdate = Partial<
   Omit<ConfiguracionSuscripcion, "id" | "actualizado_en">
+>;
+
+export type ConfiguracionCatalogoUpdate = Partial<
+  Omit<ConfiguracionCatalogo, "id" | "actualizado_en">
 >;
 
 export type PagoUpdate = Partial<Pick<Pago, "estado" | "confirmado_por">>;
