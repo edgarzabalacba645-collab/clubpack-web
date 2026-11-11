@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "./supabase";
-import { ApiError, analizarTrack, confirmarSubida, type AnalisisTrack } from "./api";
-import { mensajeErrorAmigable } from "./format";
+import { ApiError, analizarDesdeChat, analizarTrack, confirmarSubida, type AnalisisTrack } from "./api";
+import { mensajeErrorAmigable, tituloDesdeNombreArchivo } from "./format";
 import type { Genero } from "./types";
 
 export type FaseSubida = "formulario" | "analizando" | "revision" | "confirmando" | "listo";
@@ -41,6 +41,7 @@ interface SubidaContextValue {
   reiniciarTodo: () => void;
   volverAFormulario: () => void;
   handleAnalizar: () => Promise<void>;
+  handleAnalizarDesdeChat: (mensajeId: string, nombreOriginal: string) => Promise<void>;
   handleConfirmar: () => Promise<void>;
 }
 
@@ -154,6 +155,45 @@ export function SubidaProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function handleAnalizarDesdeChat(mensajeId: string, nombreOriginal: string) {
+    // Puente admin (ver ChatPage): no hay un File local elegido acá, el
+    // audio ya está en R2 — se analiza directo desde ahí (ver
+    // api.analizarDesdeChat) y se arranca en "revision" con el título
+    // sugerido a partir del nombre del archivo, igual que al elegir un
+    // archivo a mano.
+    setError(null);
+    setArchivo(null);
+    setTitulo(tituloDesdeNombreArchivo(nombreOriginal));
+    setArtistaOriginal("");
+    setRemixer("");
+    setGeneroId("");
+    setKeyArmonica("");
+    setBpmManual("");
+    setTags("");
+    setUsarCaratulaOriginal(true);
+    setConfirmoDuplicado(false);
+
+    setFase("analizando");
+    try {
+      const resultado = await analizarDesdeChat(mensajeId);
+      setAnalisis(resultado);
+      if (resultado.bpm_detectado != null) {
+        setBpmManual(
+          resultado.bpm_detectado % 1 === 0
+            ? String(resultado.bpm_detectado)
+            : resultado.bpm_detectado.toFixed(1),
+        );
+      }
+      if (resultado.key_detectada) {
+        setKeyArmonica(resultado.key_detectada);
+      }
+      setFase("revision");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+      setFase("formulario");
+    }
+  }
+
   async function handleConfirmar() {
     if (!analisis) return;
     setError(null);
@@ -226,6 +266,7 @@ export function SubidaProvider({ children }: { children: ReactNode }) {
         reiniciarTodo,
         volverAFormulario,
         handleAnalizar,
+        handleAnalizarDesdeChat,
         handleConfirmar,
       }}
     >

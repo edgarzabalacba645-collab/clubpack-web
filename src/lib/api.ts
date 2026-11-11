@@ -116,6 +116,14 @@ export function analizarTrack(
   return apiFetchJson<AnalisisTrack>("/tracks/analyze", { method: "POST", body: form });
 }
 
+// Puente admin: analiza un audio que ya está compartido en el chat (ver
+// /chat/audio) directo desde R2, sin bajarlo/resubirlo a mano — mismo
+// resultado que analizarTrack, se sigue con el formulario de siempre y
+// el mismo confirmarSubida de acá abajo.
+export function analizarDesdeChat(mensajeId: string): Promise<AnalisisTrack> {
+  return apiFetchJson<AnalisisTrack>(`/chat/mensajes/${mensajeId}/analizar`, { method: "POST" });
+}
+
 export function confirmarSubida(body: ConfirmarSubidaBody) {
   return apiFetchJson("/tracks/confirm", {
     method: "POST",

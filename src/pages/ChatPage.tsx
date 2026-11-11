@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth, tieneAccesoActivo, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
 import { mensajeErrorAmigable } from "../lib/format";
 import { ApiError, limpiarChat, obtenerUrlAudioChat, subirAudioChat } from "../lib/api";
+import { useSubida } from "../lib/subida";
 import type { MensajeChat, MensajeChatInsert } from "../lib/types";
 
 const LIMITE_HISTORIAL = 100;
@@ -38,8 +40,12 @@ function formatearDuracionCorta(segundos: number | null): string {
 }
 
 function ReproductorAudioChat({ mensaje }: { mensaje: MensajeChat }) {
+  const { perfil } = useAuth();
+  const { handleAnalizarDesdeChat } = useSubida();
+  const navigate = useNavigate();
   const [url, setUrl] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function reproducir() {
@@ -55,6 +61,17 @@ function ReproductorAudioChat({ mensaje }: { mensaje: MensajeChat }) {
     }
   }
 
+  async function subirAlCatalogo() {
+    setSubiendo(true);
+    setError(null);
+    // handleAnalizarDesdeChat ya se guarda el resultado (o el error) en
+    // el contexto de subida (ver subida.tsx) — por eso acá no hace falta
+    // try/catch: si falla, /subir va a mostrar ese error en su propia
+    // pantalla en vez de quedarnos nosotros mostrándolo acá.
+    await handleAnalizarDesdeChat(mensaje.id, mensaje.audio_nombre_original ?? "audio.mp3");
+    navigate("/subir");
+  }
+
   return (
     <div className="flex flex-col gap-1.5 min-w-[220px]">
       <div className="flex items-center gap-2 text-xs opacity-80">
@@ -68,15 +85,28 @@ function ReproductorAudioChat({ mensaje }: { mensaje: MensajeChat }) {
       {url ? (
         <audio controls autoPlay src={url} className="h-9 w-full" />
       ) : (
-        <button
-          type="button"
-          onClick={reproducir}
-          disabled={cargando}
-          className="self-start inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-black/10 dark:bg-white/15 appearance-none border-none cursor-pointer disabled:opacity-60"
-        >
-          <IconPlay />
-          {cargando ? "Cargando…" : "Reproducir"}
-        </button>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={reproducir}
+            disabled={cargando}
+            className="self-start inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-black/10 dark:bg-white/15 appearance-none border-none cursor-pointer disabled:opacity-60"
+          >
+            <IconPlay />
+            {cargando ? "Cargando…" : "Reproducir"}
+          </button>
+          {perfil?.rol === "admin" && (
+            <button
+              type="button"
+              onClick={subirAlCatalogo}
+              disabled={subiendo}
+              title="Analiza este audio y lo deja listo para completar los datos y subirlo al catálogo"
+              className="self-start inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-accent text-white appearance-none border-none cursor-pointer disabled:opacity-60"
+            >
+              {subiendo ? "Abriendo…" : "Subir al catálogo"}
+            </button>
+          )}
+        </div>
       )}
       {error && <p className="text-xs text-accent m-0">{error}</p>}
     </div>
