@@ -182,6 +182,13 @@ export function obtenerUrlAudioChat(mensajeId: string) {
   return apiFetchJson<{ url: string }>(`/chat/mensajes/${mensajeId}/audio-url`);
 }
 
+// Vacía TODO el chat (mensajes + audios en R2) — admin. Pasa por acá (y
+// no un delete directo contra Supabase) porque también hay que borrar
+// cada audio adjunto de R2, que necesita las credenciales del bucket.
+export function limpiarChat() {
+  return apiFetchJson<{ ok: boolean; borrados: number }>("/chat/mensajes", { method: "DELETE" });
+}
+
 // ---- Suscripción: Mercado Pago ----
 // (La configuración de precio/CBU y el aviso de transferencia manual van
 // directo contra Supabase desde las páginas — no necesitan pasar por acá.

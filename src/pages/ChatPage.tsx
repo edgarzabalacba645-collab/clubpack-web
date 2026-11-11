@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { supabase } from "../lib/supabase";
 import { useAuth, tieneAccesoActivo, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
 import { mensajeErrorAmigable } from "../lib/format";
-import { ApiError, obtenerUrlAudioChat, subirAudioChat } from "../lib/api";
+import { ApiError, limpiarChat, obtenerUrlAudioChat, subirAudioChat } from "../lib/api";
 import type { MensajeChat, MensajeChatInsert } from "../lib/types";
 
 const LIMITE_HISTORIAL = 100;
@@ -91,6 +91,7 @@ export default function ChatPage() {
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [archivoAudio, setArchivoAudio] = useState<File | null>(null);
+  const [limpiando, setLimpiando] = useState(false);
 
   const finRef = useRef<HTMLDivElement | null>(null);
   const inputAudioRef = useRef<HTMLInputElement | null>(null);
@@ -155,6 +156,17 @@ export default function ChatPage() {
           });
         },
       )
+      // Para que "Limpiar chat" (ver handleLimpiar) se refleje al toque
+      // en el resto de los que tienen el chat abierto, no solo recargando.
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "mensajes_chat" },
+        (payload) => {
+          const borrado = payload.old as Partial<MensajeChat>;
+          if (!activo || !borrado.id) return;
+          setMensajes((prev) => prev.filter((m) => m.id !== borrado.id));
+        },
+      )
       .subscribe();
 
     return () => {
@@ -207,13 +219,41 @@ export default function ChatPage() {
     }
   }
 
+  async function handleLimpiar() {
+    if (!window.confirm("¿Vaciar todo el chat? Se borran todos los mensajes (y los audios adjuntos). No se puede deshacer.")) {
+      return;
+    }
+    setLimpiando(true);
+    setError(null);
+    try {
+      await limpiarChat();
+      setMensajes([]);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setLimpiando(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6 h-full">
-      <div>
-        <h1 className="font-display font-extrabold text-3xl tracking-[-0.5px] m-0">Chat</h1>
-        <p className="text-muted text-sm mt-1">
-          Pedí un tema, una versión que te falte, o simplemente charlá con el grupo.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display font-extrabold text-3xl tracking-[-0.5px] m-0">Chat</h1>
+          <p className="text-muted text-sm mt-1">
+            Pedí un tema, una versión que te falte, o simplemente charlá con el grupo.
+          </p>
+        </div>
+        {perfil?.rol === "admin" && mensajes.length > 0 && (
+          <button
+            type="button"
+            onClick={handleLimpiar}
+            disabled={limpiando}
+            className="shrink-0 text-xs font-semibold text-accent px-3 py-2 rounded-full border border-accent/30 bg-transparent appearance-none cursor-pointer disabled:opacity-60"
+          >
+            {limpiando ? "Vaciando…" : "Limpiar chat"}
+          </button>
+        )}
       </div>
 
       <div className="bg-card rounded-2xl border border-border-soft flex flex-col h-[60vh] min-h-[360px]">
