@@ -127,6 +127,13 @@ export default function CatalogoPage() {
   // menos el seleccionado. Esto en cambio es siempre el total real del
   // catálogo completo.
   const [conteoGeneros, setConteoGeneros] = useState<Record<string, number>>({});
+  // Total real del catálogo (todos los géneros, incluso sin género
+  // asignado) — separado de conteoGeneros porque sumar ese objeto se
+  // comería los tracks sin genero_id. Se muestra en el encabezado en vez
+  // de tracks.length porque ese último SÍ cambia con los filtros (al
+  // elegir un género el encabezado mostraba solo esa cantidad, no el
+  // total de la plataforma).
+  const [totalCatalogo, setTotalCatalogo] = useState<number | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -210,6 +217,7 @@ export default function CatalogoPage() {
         if (fila.genero_id) conteo[fila.genero_id] = (conteo[fila.genero_id] ?? 0) + 1;
       }
       setConteoGeneros(conteo);
+      setTotalCatalogo(data.length);
     } catch {
       // los badges de cantidad simplemente no se muestran si esto falla
     }
@@ -676,9 +684,9 @@ export default function CatalogoPage() {
               : "El catálogo de música para DJs"}
           </h1>
           <p className="mt-3 text-ink/75 dark:text-white/75 text-sm sm:text-base m-0">
-            {cargando
+            {totalCatalogo === null
               ? "Cargando…"
-              : `Descubrí, escuchá y descargá los ${tracks.length} track${tracks.length === 1 ? "" : "s"} que compartió el grupo.`}
+              : `Descubrí, escuchá y descargá los ${totalCatalogo} track${totalCatalogo === 1 ? "" : "s"} que compartió el grupo.`}
           </p>
         </div>
 
