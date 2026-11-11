@@ -671,6 +671,22 @@ export default function CatalogoPage() {
         )}
       </div>
 
+      {/* Aviso de subidas suspendidas — se ve en el Catálogo (no en /subir)
+          porque cuando el admin cierra las subidas, AppShell le esconde a
+          todos los no-admin el botón "Subir Temas" (ver puedeVerBotonSubir
+          ahí); sin este aviso acá, nadie se entera de que puede mandar el
+          tema por el chat en vez de simplemente no poder subirlo. */}
+      {!permiteSubidaColaboradores && perfil?.rol !== "admin" && (
+        <p className="text-sm bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 m-0">
+          👋 Hola DJs: por ahora la subida de temas al catálogo está suspendida. Si tenés un
+          tema para sumar, compartilo por el{" "}
+          <Link to="/chat" className="underline font-semibold">
+            chat de la comunidad
+          </Link>{" "}
+          (sección Comunidad) y el administrador lo sube por vos.
+        </p>
+      )}
+
       {/* Aviso de acceso gratuito limitado — solo para quien todavía no tiene
           suscripción activa. Puede escuchar Cuarteto/Cachengue sin pagar
           (ver policy "ver_tracks_con_acceso" en sql/006_*.sql); el resto del

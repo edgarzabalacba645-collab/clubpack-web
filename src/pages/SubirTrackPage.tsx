@@ -69,11 +69,11 @@ export default function SubirTrackPage() {
     return (
       <div className="flex flex-col items-start gap-3 py-10 max-w-md">
         <h1 className="font-display font-extrabold text-2xl tracking-[-0.5px] m-0">
-          Las subidas están cerradas por ahora
+          👋 Hola DJs
         </h1>
         <p className="text-body text-base leading-relaxed m-0">
-          El administrador del grupo está subiendo los temas a mano mientras el catálogo se acomoda. Mandale el
-          tema por el chat de la comunidad y lo sube él.
+          Por ahora la subida de temas al catálogo está suspendida. Si necesitás subir un tema,
+          mandalo por el chat de la comunidad (sección Comunidad) y el administrador lo sube por vos.
         </p>
         <Link
           to="/chat"
