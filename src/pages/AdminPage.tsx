@@ -89,11 +89,14 @@ const ROLES: Rol[] = ["miembro", "admin"];
 const ESTADOS_SUSCRIPCION: EstadoSuscripcion[] = ["activo", "vencido", "cancelado", "pendiente"];
 
 function UsuariosTab() {
+  const { session } = useAuth();
   const [usuarios, setUsuarios] = useState<Perfil[]>([]);
   const [ediciones, setEdiciones] = useState<Record<string, { rol: Rol; estado_suscripcion: EstadoSuscripcion }>>({});
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [guardandoId, setGuardandoId] = useState<string | null>(null);
+  const [ocupadoId, setOcupadoId] = useState<string | null>(null);
+  const [confirmandoBorrarId, setConfirmandoBorrarId] = useState<string | null>(null);
 
   useEffect(() => {
     cargar();
@@ -140,6 +143,26 @@ function UsuariosTab() {
     }
   }
 
+  // Borra la fila de perfiles (nombre, rol, suscripción) — no la cuenta
+  // de login en sí (eso vive en auth.users y hace falta la service_role
+  // key para tocarlo, que este proyecto no usa nunca en el backend; ver
+  // sql/013_borrar_usuarios.sql). Sus temas subidos quedan igual, sin
+  // autor; sus mensajes de chat sí se borran con él.
+  async function borrar(u: Perfil) {
+    setOcupadoId(u.id);
+    setError(null);
+    try {
+      const { error } = await supabase.from("perfiles").delete().eq("id", u.id);
+      if (error) throw error;
+      setUsuarios((prev) => prev.filter((p) => p.id !== u.id));
+    } catch (e) {
+      setError(mensajeErrorAmigable(e));
+    } finally {
+      setOcupadoId(null);
+      setConfirmandoBorrarId(null);
+    }
+  }
+
   if (cargando) return <p className="text-sm text-muted m-0">Cargando…</p>;
 
   return (
@@ -147,6 +170,11 @@ function UsuariosTab() {
       <p className="text-sm text-muted m-0">
         Cambia el estado a mano — para pagos reales (Mercado Pago o transferencias) usá la pestaña
         Suscripción, que mantiene esto sincronizado solo.
+      </p>
+      <p className="text-xs text-muted-2 m-0">
+        "Borrar" saca al usuario de esta lista y de toda la app (pierde el acceso). No borra su
+        cuenta de login en sí — para eso hace falta entrar a Supabase Dashboard → Authentication →
+        Users y borrarla ahí a mano.
       </p>
       {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
 
@@ -199,6 +227,36 @@ function UsuariosTab() {
                 className="text-sm font-semibold bg-accent text-white px-4 py-1.5 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
               >
                 {guardandoId === u.id ? "Guardando…" : "Guardar cambios"}
+              </button>
+            )}
+
+            {u.id === session?.user.id ? (
+              <span className="text-xs text-muted-2 shrink-0">(vos)</span>
+            ) : confirmandoBorrarId === u.id ? (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => borrar(u)}
+                  disabled={ocupadoId === u.id}
+                  className="text-xs font-semibold text-accent appearance-none bg-transparent border-none cursor-pointer disabled:opacity-60"
+                >
+                  {ocupadoId === u.id ? "Borrando…" : "Confirmar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmandoBorrarId(null)}
+                  className="text-xs text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmandoBorrarId(u.id)}
+                className="text-xs font-semibold text-muted hover:text-accent appearance-none bg-transparent border-none cursor-pointer shrink-0"
+              >
+                Borrar
               </button>
             )}
           </div>
@@ -260,20 +318,6 @@ function GenerosTab() {
     }
   }
 
-  async function toggleActivo(g: Genero) {
-    setOcupadoId(g.id);
-    setError(null);
-    try {
-      const { error } = await supabase.from("generos").update({ activo: !g.activo }).eq("id", g.id);
-      if (error) throw error;
-      setGeneros((prev) => prev.map((x) => (x.id === g.id ? { ...x, activo: !g.activo } : x)));
-    } catch (e) {
-      setError(mensajeErrorAmigable(e));
-    } finally {
-      setOcupadoId(null);
-    }
-  }
-
   async function borrar(g: Genero) {
     setOcupadoId(g.id);
     setError(null);
@@ -316,23 +360,12 @@ function GenerosTab() {
       <div className="flex flex-col gap-2">
         {generos.map((g) => (
           <div key={g.id} className="bg-card rounded-xl border border-border-soft px-4 py-3 flex items-center gap-4">
-            <span className="flex-1 text-sm font-medium">{g.nombre}</span>
-
-            <button
-              type="button"
-              onClick={() => toggleActivo(g)}
-              disabled={ocupadoId === g.id}
-              aria-label={g.activo ? "Desactivar género" : "Activar género"}
-              className={`relative w-10 h-6 rounded-full transition-colors appearance-none border-none cursor-pointer shrink-0 disabled:opacity-60 ${
-                g.activo ? "bg-accent-lime" : "bg-border"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                  g.activo ? "translate-x-[18px]" : "translate-x-0.5"
-                }`}
-              />
-            </button>
+            <span className="flex-1 text-sm font-medium">
+              {g.nombre}
+              {!g.activo && (
+                <span className="ml-2 text-xs font-normal text-muted-2">(inactivo — convendría borrarlo)</span>
+              )}
+            </span>
 
             {confirmandoBorrarId === g.id ? (
               <div className="flex items-center gap-2 shrink-0">
