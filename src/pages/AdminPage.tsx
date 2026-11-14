@@ -10,10 +10,12 @@ import {
   listarPendientesPeaks,
   marcarDuplicado,
   obtenerBalanceCloudflare,
+  obtenerBalanceRender,
   subirImagenHerramienta,
   type BalanceCloudflare,
+  type BalanceRender,
   type DuplicadoPendiente,
-  type ItemUsoCloudflare,
+  type ItemUso,
   type TrackPendientePeaks,
 } from "../lib/api";
 import {
@@ -1632,6 +1634,21 @@ function Campo({ etiqueta, children }: { etiqueta: string; children: ReactNode }
 // ============================================================
 
 function UsoTab() {
+  return (
+    <div className="max-w-2xl flex flex-col gap-8">
+      <section className="flex flex-col gap-3">
+        <h3 className="text-base font-semibold m-0">Cloudflare R2 (archivos subidos)</h3>
+        <SeccionCloudflare />
+      </section>
+      <section className="flex flex-col gap-3">
+        <h3 className="text-base font-semibold m-0">Render (ancho de banda del backend)</h3>
+        <SeccionRender />
+      </section>
+    </div>
+  );
+}
+
+function SeccionCloudflare() {
   const [balance, setBalance] = useState<BalanceCloudflare | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1658,7 +1675,7 @@ function UsoTab() {
 
   if (!balance.configurado) {
     return (
-      <div className="max-w-2xl bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-4">
+      <div className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-4">
         <p className="text-sm font-semibold m-0">{balance.mensaje}</p>
         <p className="text-sm text-muted m-0">
           Para que este panel pueda leer los números reales de Cloudflare (storage, lecturas,
@@ -1701,7 +1718,7 @@ function UsoTab() {
   const costoTotal = balance.costo_total_usd ?? 0;
 
   return (
-    <div className="max-w-2xl flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm text-muted m-0">
           Período en curso: {balance.periodo_desde} – {balance.periodo_hasta}
@@ -1748,6 +1765,130 @@ function UsoTab() {
   );
 }
 
+const CLAVE_NOTA_PAGO_RENDER = "clubpack.admin.notaPagoRender";
+
+function SeccionRender() {
+  const [balance, setBalance] = useState<BalanceRender | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [nota, setNota] = useState("");
+  const [notaGuardada, setNotaGuardada] = useState(false);
+
+  useEffect(() => {
+    cargar();
+    try {
+      setNota(localStorage.getItem(CLAVE_NOTA_PAGO_RENDER) ?? "");
+    } catch {
+      // Privado/bloqueado: la nota simplemente no persiste, no rompe nada.
+    }
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    setError(null);
+    try {
+      setBalance(await obtenerBalanceRender());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  function guardarNota(valor: string) {
+    setNota(valor);
+    setNotaGuardada(false);
+    try {
+      if (valor.trim()) localStorage.setItem(CLAVE_NOTA_PAGO_RENDER, valor);
+      else localStorage.removeItem(CLAVE_NOTA_PAGO_RENDER);
+      setNotaGuardada(true);
+    } catch {
+      // Privado/bloqueado: no se pudo guardar, seguimos sin romper la pantalla.
+    }
+  }
+
+  if (cargando) return <p className="text-sm text-muted m-0">Cargando…</p>;
+  if (error) return <p className="text-sm text-accent font-medium m-0">{error}</p>;
+  if (!balance) return null;
+
+  if (!balance.configurado) {
+    return (
+      <div className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-4">
+        <p className="text-sm font-semibold m-0">{balance.mensaje}</p>
+        <ol className="text-sm text-muted m-0 pl-5 flex flex-col gap-1.5 list-decimal">
+          <li>
+            En{" "}
+            <a href="https://dashboard.render.com/settings#api-keys" target="_blank" rel="noreferrer" className="text-ink underline">
+              Render → Account Settings → API Keys
+            </a>
+            , tocá <strong>Create API key</strong> y copiá el valor (solo se muestra esa vez).
+          </li>
+          <li>
+            Andá al servicio <strong>clubpack-api</strong> y copiá su Service ID de la URL del
+            dashboard (empieza con <code className="bg-cream px-1 rounded">srv-</code>).
+          </li>
+          <li>
+            En el grupo de variables de entorno del backend, agregá{" "}
+            <code className="bg-cream px-1 rounded">RENDER_API_KEY</code> y{" "}
+            <code className="bg-cream px-1 rounded">RENDER_SERVICE_ID</code> con esos dos valores,
+            y guardá — Render vuelve a desplegar solo.
+          </li>
+        </ol>
+        <button
+          type="button"
+          onClick={cargar}
+          className="self-start text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer"
+        >
+          Ya lo configuré, volver a intentar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted m-0">
+        Período en curso: {balance.periodo_desde} – {balance.periodo_hasta}
+      </p>
+
+      {balance.bandwidth && (
+        <TarjetaUso
+          etiqueta="Ancho de banda de salida"
+          item={balance.bandwidth}
+          unidad="GB"
+          decimales={2}
+          tarifaExcedente="USD 0,15 / GB excedente"
+        />
+      )}
+
+      <p className="text-xs text-muted-2 m-0">
+        Este número es de Render, no de ClubPack — el plan gratis (Hobby) incluye 5 GB de ancho de
+        banda de salida por mes, compartido entre todos los servicios de tu cuenta de Render; al
+        superarlo, Render empieza a cobrar. Se actualiza cada pocos minutos.
+      </p>
+
+      <div className="bg-card rounded-2xl border border-border-soft p-4 flex flex-col gap-2">
+        <label className="text-xs font-semibold text-muted" htmlFor="nota-pago-render">
+          Nota de pago (opcional — si ya pagaste un excedente, anotalo acá)
+        </label>
+        <input
+          id="nota-pago-render"
+          type="text"
+          value={nota}
+          onChange={(e) => guardarNota(e.target.value)}
+          placeholder="ej: pagué USD 2,30 el 05/11/2026"
+          className="text-sm bg-cream border border-border-soft rounded-lg px-3 py-2"
+        />
+        <p className="text-xs text-muted-2 m-0">
+          Esto es solo un recordatorio tuyo: se guarda en este navegador, no en la base de datos —
+          no se sincroniza con otro dispositivo ni lo ve nadie más. Render no expone por API si ya
+          te cobró o no; eso se ve en su sección de Billing.{notaGuardada && " Guardado."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function TarjetaUso({
   etiqueta,
   item,
@@ -1756,7 +1897,7 @@ function TarjetaUso({
   tarifaExcedente,
 }: {
   etiqueta: string;
-  item: ItemUsoCloudflare;
+  item: ItemUso;
   unidad: string;
   decimales: number;
   /** Precio por unidad una vez agotado el límite gratis, ej. "USD 0,015 / GB excedente". */

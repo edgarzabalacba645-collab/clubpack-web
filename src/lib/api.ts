@@ -301,7 +301,7 @@ export function marcarDuplicado(id: string, estado: "descartado" | "resuelto") {
 
 // ---- Admin: balance de uso de Cloudflare R2 ----
 
-export interface ItemUsoCloudflare {
+export interface ItemUso {
   usado: number;
   limite_gratis: number;
   porcentaje: number;
@@ -313,14 +313,28 @@ export interface BalanceCloudflare {
   mensaje?: string;
   periodo_desde?: string;
   periodo_hasta?: string;
-  storage?: ItemUsoCloudflare;
-  operaciones_a?: ItemUsoCloudflare;
-  operaciones_b?: ItemUsoCloudflare;
+  storage?: ItemUso;
+  operaciones_a?: ItemUso;
+  operaciones_b?: ItemUso;
   costo_total_usd?: number;
 }
 
 export function obtenerBalanceCloudflare() {
   return apiFetchJson<BalanceCloudflare>("/admin/uso/cloudflare");
+}
+
+// ---- Admin: balance de ancho de banda de Render ----
+
+export interface BalanceRender {
+  configurado: boolean;
+  mensaje?: string;
+  periodo_desde?: string;
+  periodo_hasta?: string;
+  bandwidth?: ItemUso;
+}
+
+export function obtenerBalanceRender() {
+  return apiFetchJson<BalanceRender>("/admin/uso/render");
 }
 
 // ---- Utilidad: forzar la descarga directa de uno o varios archivos ----
