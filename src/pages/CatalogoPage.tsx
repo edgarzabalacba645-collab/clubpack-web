@@ -117,7 +117,7 @@ export default function CatalogoPage() {
   const { permiteSubidaColaboradores } = useConfiguracionCatalogo();
   const player = usePlayer();
   const { sidebarEscritorioAbierto } = useOutletContext<AppShellContext>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tracks, setTracks] = useState<TrackFila[]>([]);
   const [generos, setGeneros] = useState<Genero[]>([]);
   // Cantidad de tracks activos por género, para mostrar al lado de cada
@@ -323,12 +323,23 @@ export default function CatalogoPage() {
     }
   }
 
+  // Cambiar de género (pills o el select) manda sobre el buscador de
+  // texto: si quedó algo escrito de antes, se limpia solo — si no, al
+  // tocar otro género salían "0 temas" sin que se notara por qué. BPM y
+  // tonalidad quedan como estaban: esos sí se combinan con el género.
+  function elegirGenero(id: string) {
+    setGeneroId(id);
+    if (busqueda) setBusqueda("");
+    if (searchParams.has("q")) setSearchParams({}, { replace: true });
+  }
+
   function limpiarFiltros() {
     setBusqueda("");
     setGeneroId("");
     setBpmMin("");
     setBpmMax("");
     setKey("");
+    if (searchParams.has("q")) setSearchParams({}, { replace: true });
   }
 
   function toggleSeleccion(id: string) {
@@ -812,7 +823,7 @@ export default function CatalogoPage() {
         <div className="flex flex-wrap gap-2 -mt-2">
           <button
             type="button"
-            onClick={() => setGeneroId("")}
+            onClick={() => elegirGenero("")}
             className={`text-sm font-semibold px-4 py-2 rounded-full appearance-none border-none cursor-pointer transition-colors ${
               generoId === "" ? "bg-ink text-cream" : "bg-card border border-border text-body hover:border-ink"
             }`}
@@ -823,7 +834,7 @@ export default function CatalogoPage() {
             <button
               key={g.id}
               type="button"
-              onClick={() => setGeneroId(g.id === generoId ? "" : g.id)}
+              onClick={() => elegirGenero(g.id === generoId ? "" : g.id)}
               className={`text-sm font-semibold px-4 py-2 rounded-full appearance-none cursor-pointer transition-colors ${
                 generoId === g.id
                   ? "border-none bg-accent text-white"
@@ -859,7 +870,7 @@ export default function CatalogoPage() {
           <select
             id="genero"
             value={generoId}
-            onChange={(e) => setGeneroId(e.target.value)}
+            onChange={(e) => elegirGenero(e.target.value)}
             className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
           >
             <option value="">Todos</option>
