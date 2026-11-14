@@ -1029,7 +1029,7 @@ function CatalogoCompletoTab() {
       try {
         const { data, error } = await supabase
           .from("tracks")
-          .select("id, titulo, remixer, genero, bpm, estado, fecha_subida, subido_por, perfiles(nombre_dj, email)")
+          .select("id, titulo, remixer, genero, bpm, estado, fecha_subida, subido_por, perfiles!tracks_subido_por_fkey(nombre_dj, email)")
           .order("fecha_subida", { ascending: false })
           // Mismo motivo que en el límite del Catálogo (ver CatalogoPage):
           // con el crecimiento del catálogo, un tope bajo termina

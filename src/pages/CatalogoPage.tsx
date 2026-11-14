@@ -327,7 +327,7 @@ export default function CatalogoPage() {
       let query = supabase
         .from("tracks")
         .select(
-          "id, titulo, artista_original, remixer, bpm, key_armonica, duracion_seg, genero_id, generos(nombre), subido_por, tags, portada_url, fecha_subida, perfiles(nombre_dj, email)",
+          "id, titulo, artista_original, remixer, bpm, key_armonica, duracion_seg, genero_id, generos(nombre), subido_por, tags, portada_url, fecha_subida, perfiles!tracks_subido_por_fkey(nombre_dj, email)",
         )
         .eq("estado", "activo")
         .order("fecha_subida", { ascending: false });

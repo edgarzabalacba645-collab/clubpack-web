@@ -16,7 +16,7 @@ export interface TrackResumen {
 }
 
 export const SELECT_TRACK_RESUMEN =
-  "id, titulo, artista_original, remixer, bpm, key_armonica, duracion_seg, genero_id, generos(nombre), portada_url, fecha_subida, perfiles(nombre_dj, email)";
+  "id, titulo, artista_original, remixer, bpm, key_armonica, duracion_seg, genero_id, generos(nombre), portada_url, fecha_subida, perfiles!tracks_subido_por_fkey(nombre_dj, email)";
 
 /** "Hoy", "Ayer" o dd/mm/yyyy — para agrupar listas por día. */
 export function rotuloDia(iso: string | null): string {
