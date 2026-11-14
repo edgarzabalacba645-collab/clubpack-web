@@ -6,6 +6,7 @@ import { usePlayer } from "../lib/player";
 import { formatearDuracion } from "../lib/format";
 import { abrirDescargaDirecta, ApiError, obtenerUrlDescarga } from "../lib/api";
 import BotonTema from "./BotonTema";
+import CampanaNovedades from "./CampanaNovedades";
 
 /** Lo que AppShell le pasa a sus páginas hijas via useOutletContext. */
 export interface AppShellContext {
@@ -32,6 +33,13 @@ function IconLogoBadge() {
       />
       <rect x="5.3" y="13.3" width="2.6" height="4.4" rx="1.3" fill="var(--color-ink)" />
       <rect x="16.1" y="13.3" width="2.6" height="4.4" rx="1.3" fill="var(--color-ink)" />
+      {/* Onda de audio entre los auriculares (ver IconLogoBare). */}
+      <g stroke="var(--color-ink)" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M9.6 14.6v2.2" />
+        <path d="M11.2 13.2v5" />
+        <path d="M12.8 14.1v3.2" />
+        <path d="M14.4 14.9v1.6" />
+      </g>
     </svg>
   );
 }
@@ -52,6 +60,40 @@ function IconLogoBare() {
       />
       <rect x="3.3" y="13" width="3.4" height="6" rx="1.7" fill="currentColor" />
       <rect x="17.3" y="13" width="3.4" height="6" rx="1.7" fill="currentColor" />
+      {/* Onda de audio entre los auriculares — el "leve retoque" del logo:
+          cuatro barras tipo ecualizador, como en la referencia de diseño. */}
+      <g stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <path d="M9.1 14.9v2.6" />
+        <path d="M11 13.2v6" />
+        <path d="M13 14.3v3.8" />
+        <path d="M14.9 15.3v1.8" />
+      </g>
+    </svg>
+  );
+}
+
+function IconHeart() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20s-6.2-4-8.6-7.5C1.6 9.6 2.6 5.8 5.8 4.6c2-.8 4.1 0 5.3 1.6l.9 1.2.9-1.2c1.2-1.6 3.3-2.4 5.3-1.6 3.2 1.2 4.2 5 2.4 7.9C18.2 16 12 20 12 20Z" />
+    </svg>
+  );
+}
+
+function IconDownloadNav() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
+      <path d="M4 17v2a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19v-2" />
+    </svg>
+  );
+}
+
+function IconSparkle() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3.5 13.8 9l5.7 1.8-5.7 1.8L12 18.5l-1.8-5.9-5.7-1.8L10.2 9 12 3.5Z" />
+      <path d="M19 16.5v3M17.5 18h3" />
     </svg>
   );
 }
@@ -342,14 +384,72 @@ function BarraReproductor() {
 }
 
 const navItems: { to: string; label: string; icon: ReactNode }[] = [
-  { to: "/catalogo", label: "Catálogo", icon: <IconHome /> },
-  { to: "/top50", label: "Top 50", icon: <IconTrofeo /> },
-  { to: "/playlists", label: "Playlists", icon: <IconPlaylist /> },
+  { to: "/catalogo", label: "Inicio", icon: <IconHome /> },
+  { to: "/novedades", label: "Novedades", icon: <IconSparkle /> },
+  { to: "/favoritos", label: "Favoritos", icon: <IconHeart /> },
+  { to: "/descargas", label: "Descargas", icon: <IconDownloadNav /> },
+  { to: "/playlists", label: "Listas", icon: <IconPlaylist /> },
+  { to: "/top50", label: "Ranking", icon: <IconTrofeo /> },
   { to: "/chat", label: "Comunidad", icon: <IconChat /> },
   { to: "/herramientas", label: "Herramientas DJ", icon: <IconTools /> },
-  { to: "/cuenta", label: "Mi cuenta", icon: <IconUser /> },
+  { to: "/cuenta", label: "Mi Perfil", icon: <IconUser /> },
   { to: "/suscripcion", label: "Suscripción", icon: <IconCard /> },
 ];
+
+/* Card "Hazte socio" al pie de la sidebar — solo para quien no tiene
+   acceso activo (admin y suscriptos ven el pie de siempre). */
+function PieSidebar({ perfil, onNavegar }: { perfil: ReturnType<typeof useAuth>["perfil"]; onNavegar?: () => void }) {
+  const sinAcceso = !!perfil && perfil.rol !== "admin" && perfil.estado_suscripcion !== "activo";
+  if (!sinAcceso) {
+    return (
+      <div className="rounded-xl bg-cream p-3.5 text-xs text-muted mt-2">
+        ClubPack — hecho por DJs, para DJs. Catálogo cerrado, uso privado del grupo.
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-accent/15 to-accent-violet/15 border border-accent/20 p-4 mt-2 text-center flex flex-col items-center gap-2">
+      <span className="text-2xl" aria-hidden="true">
+        👑
+      </span>
+      <div className="font-display font-bold text-sm">Hazte socio</div>
+      <p className="text-xs text-muted m-0 leading-snug">
+        Escuchá y descargá todo el catálogo, y armá tus listas.
+      </p>
+      <NavLink
+        to="/suscripcion"
+        onClick={onNavegar}
+        className="mt-1 w-full text-center bg-accent text-white text-xs font-semibold px-4 py-2.5 rounded-full no-underline"
+      >
+        Suscribirme
+      </NavLink>
+    </div>
+  );
+}
+
+/* Pie de página, dentro del <main> para que respete el padding que deja
+   la barra del reproductor. Redes: cuando haya links, van acá. */
+function PiePagina() {
+  const claseLink = "text-xs text-muted hover:text-ink no-underline";
+  return (
+    <footer className="mt-12 pt-5 border-t border-border-soft flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+      <nav className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <NavLink to="/terminos" className={claseLink}>
+          Términos y Condiciones
+        </NavLink>
+        <NavLink to="/privacidad" className={claseLink}>
+          Política de Privacidad
+        </NavLink>
+        <NavLink to="/contacto" className={claseLink}>
+          Contacto
+        </NavLink>
+      </nav>
+      <span className="text-xs text-muted-2">
+        <strong className="text-muted">ClubPack</strong> — La música nos une
+      </span>
+    </footer>
+  );
+}
 
 function sidebarLinkClass({ isActive }: { isActive: boolean }) {
   return [
@@ -444,6 +544,8 @@ export default function AppShell() {
             </NavLink>
           )}
 
+          <CampanaNovedades usuarioId={perfil?.id} />
+
           <BotonTema className="shrink-0" />
 
           <div className="shrink-0 flex items-center gap-2 pl-1">
@@ -534,9 +636,7 @@ export default function AppShell() {
             </NavLink>
           )}
 
-          <div className="rounded-xl bg-cream p-3.5 text-xs text-muted mt-2">
-            ClubPack — hecho por DJs, para DJs. Catálogo cerrado, uso privado del grupo.
-          </div>
+          <PieSidebar perfil={perfil} onNavegar={() => setSidebarAbierto(false)} />
         </aside>
 
         {/* Sidebar de PC — auto-hide por hover, como un dock. Nunca es
@@ -574,9 +674,7 @@ export default function AppShell() {
 
             <div className="flex-1" />
 
-            <div className="rounded-xl bg-cream p-3.5 text-xs text-muted mt-2">
-              ClubPack — hecho por DJs, para DJs. Catálogo cerrado, uso privado del grupo.
-            </div>
+            <PieSidebar perfil={perfil} />
           </div>
         </aside>
 
@@ -598,6 +696,7 @@ export default function AppShell() {
               sumar más portadas por fila cuando el contenido tiene más
               ancho disponible al estar escondido. */}
           <Outlet context={{ sidebarEscritorioAbierto } satisfies AppShellContext} />
+          <PiePagina />
         </main>
       </div>
 

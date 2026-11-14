@@ -9,6 +9,10 @@ import Top50Page from "./pages/Top50Page";
 import MiCuentaPage from "./pages/MiCuentaPage";
 import SuscripcionPage from "./pages/SuscripcionPage";
 import AdminPage from "./pages/AdminPage";
+import FavoritosPage from "./pages/FavoritosPage";
+import NovedadesPage from "./pages/NovedadesPage";
+import DescargasPage from "./pages/DescargasPage";
+import { ContactoPage, PrivacidadPage, TerminosPage } from "./pages/LegalPages";
 import AppShell from "./components/AppShell";
 import { RutaProtegida, RutaAdmin } from "./components/ProtectedRoute";
 import { PlayerProvider } from "./lib/player";
@@ -51,6 +55,12 @@ export default function App() {
             <Route path="/top50" element={<Top50Page />} />
             <Route path="/cuenta" element={<MiCuentaPage />} />
             <Route path="/suscripcion" element={<SuscripcionPage />} />
+            <Route path="/favoritos" element={<FavoritosPage />} />
+            <Route path="/novedades" element={<NovedadesPage />} />
+            <Route path="/descargas" element={<DescargasPage />} />
+            <Route path="/terminos" element={<TerminosPage />} />
+            <Route path="/privacidad" element={<PrivacidadPage />} />
+            <Route path="/contacto" element={<ContactoPage />} />
 
             <Route element={<RutaAdmin />}>
               <Route path="/admin" element={<AdminPage />} />

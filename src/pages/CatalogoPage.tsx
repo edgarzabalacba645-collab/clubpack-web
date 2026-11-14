@@ -23,7 +23,10 @@ import type { Genero, PlaylistInsert, PlaylistTrackInsert } from "../lib/types";
 import { useAuth, tieneAccesoActivo, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
 import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { usePlayer } from "../lib/player";
+import { useFavoritos } from "../lib/favoritos";
 import Portada from "../components/Portada";
+import BotonCorazon from "../components/BotonCorazon";
+import AvisoSuscripcionModal from "../components/AvisoSuscripcionModal";
 
 interface TrackFila {
   id: string;
@@ -56,6 +59,36 @@ const BADGES_GENERO = [
 function badgeGenero(i: number) {
   return BADGES_GENERO[i % BADGES_GENERO.length];
 }
+
+/* Opciones de los filtros nuevos. Los rangos de duración son en segundos;
+   la antigüedad, en días hacia atrás desde hoy. */
+type DuracionFiltro = "" | "corta" | "media" | "larga" | "extendida";
+const DURACIONES: { id: DuracionFiltro; texto: string; min?: number; max?: number }[] = [
+  { id: "", texto: "Todas" },
+  { id: "corta", texto: "Hasta 3 min", max: 180 },
+  { id: "media", texto: "3 a 5 min", min: 180, max: 300 },
+  { id: "larga", texto: "5 a 8 min", min: 300, max: 480 },
+  { id: "extendida", texto: "Más de 8 min", min: 480 },
+];
+type AntiguedadFiltro = "" | "7" | "30" | "90" | "365";
+const ANTIGUEDADES: { id: AntiguedadFiltro; texto: string }[] = [
+  { id: "", texto: "Siempre" },
+  { id: "7", texto: "Últimos 7 días" },
+  { id: "30", texto: "Últimos 30 días" },
+  { id: "90", texto: "Últimos 3 meses" },
+  { id: "365", texto: "Último año" },
+];
+type OrdenCatalogo = "nuevos" | "viejos" | "titulo" | "bpm_asc" | "bpm_desc" | "descargas" | "escuchas" | "favoritos";
+const ORDENES: { id: OrdenCatalogo; texto: string }[] = [
+  { id: "nuevos", texto: "Más nuevos" },
+  { id: "viejos", texto: "Más antiguos" },
+  { id: "titulo", texto: "Título A → Z" },
+  { id: "bpm_asc", texto: "BPM ascendente" },
+  { id: "bpm_desc", texto: "BPM descendente" },
+  { id: "descargas", texto: "Más descargados" },
+  { id: "escuchas", texto: "Más escuchados" },
+  { id: "favoritos", texto: "Más favoritos" },
+];
 
 /* Íconos de la columna "Acciones" — antes eran botones de texto
    (Editar/Bajar/Borrar), ahora solo el ícono + aria-label/title para
@@ -151,6 +184,15 @@ export default function CatalogoPage() {
   const [bpmMin, setBpmMin] = useState("");
   const [bpmMax, setBpmMax] = useState("");
   const [key, setKey] = useState("");
+  // Filtros nuevos: duración (rangos fijos), antigüedad de la subida, y
+  // orden. Los dos primeros van a la consulta; el orden por métricas
+  // (descargas/escuchas/favoritos) se resuelve en el cliente con lo que
+  // trae useFavoritos, porque esos números no están en la tabla tracks.
+  const [duracion, setDuracion] = useState<DuracionFiltro>("");
+  const [antiguedad, setAntiguedad] = useState<AntiguedadFiltro>("");
+  const [orden, setOrden] = useState<OrdenCatalogo>("nuevos");
+
+  const { metricasDe, esFavorito, toggleFavorito } = useFavoritos();
 
   // "Catálogo completo" se pagina: cada Portada montada pide una URL
   // firmada al backend (ver src/components/Portada.tsx -> urlImagen), que
@@ -275,7 +317,7 @@ export default function CatalogoPage() {
     }, 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busqueda, generoId, bpmMin, bpmMax, key]);
+  }, [busqueda, generoId, bpmMin, bpmMax, key, duracion, antiguedad]);
 
   async function cargarTracks() {
     setCargando(true);
@@ -300,6 +342,13 @@ export default function CatalogoPage() {
       if (key) query = query.eq("key_armonica", key);
       if (bpmMin) query = query.gte("bpm", Number(bpmMin));
       if (bpmMax) query = query.lte("bpm", Number(bpmMax));
+      const rangoDuracion = DURACIONES.find((d) => d.id === duracion);
+      if (rangoDuracion?.min != null) query = query.gte("duracion_seg", rangoDuracion.min);
+      if (rangoDuracion?.max != null) query = query.lt("duracion_seg", rangoDuracion.max);
+      if (antiguedad) {
+        const desde = new Date(Date.now() - Number(antiguedad) * 86400e3).toISOString();
+        query = query.gte("fecha_subida", desde);
+      }
 
       // Antes estaba en 300 — el catálogo ya superó esa cantidad de
       // tracks activos, así que los temas más viejos (se ordena por
@@ -339,6 +388,9 @@ export default function CatalogoPage() {
     setBpmMin("");
     setBpmMax("");
     setKey("");
+    setDuracion("");
+    setAntiguedad("");
+    setOrden("nuevos");
     if (searchParams.has("q")) setSearchParams({}, { replace: true });
   }
 
@@ -398,7 +450,10 @@ export default function CatalogoPage() {
           // completa — ver sql/012_freemium_v2_vidriera.sql), así que la
           // cola se acota a la muestra gratuita para no intentar pasar a
           // un tema que después el backend va a rechazar igual.
-          cola: (tieneAccesoActivo(perfil) ? tracks : tracks.filter((t) => muestraGratisIds.has(t.id))).map((t) => ({
+          cola: (tieneAccesoActivo(perfil)
+            ? tracksOrdenados
+            : tracksOrdenados.filter((t) => muestraGratisIds.has(t.id))
+          ).map((t) => ({
             id: t.id,
             titulo: t.titulo,
             artista_original: t.artista_original,
@@ -667,22 +722,79 @@ export default function CatalogoPage() {
   }
 
   const hayFiltrosActivos = useMemo(
-    () => !!(busqueda || generoId || bpmMin || bpmMax || key),
-    [busqueda, generoId, bpmMin, bpmMax, key],
+    () => !!(busqueda || generoId || bpmMin || bpmMax || key || duracion || antiguedad || orden !== "nuevos"),
+    [busqueda, generoId, bpmMin, bpmMax, key, duracion, antiguedad, orden],
   );
+
+  // El orden se aplica acá, sobre lo que trajo la consulta (que viene
+  // siempre por fecha desc): los órdenes por métricas usan los contadores
+  // agregados de useFavoritos, que no viven en la tabla tracks.
+  const tracksOrdenados = useMemo(() => {
+    if (orden === "nuevos") return tracks;
+    const lista = [...tracks];
+    const porFecha = (a: TrackFila, b: TrackFila) =>
+      (b.fecha_subida ?? "").localeCompare(a.fecha_subida ?? "");
+    switch (orden) {
+      case "viejos":
+        return lista.reverse();
+      case "titulo":
+        return lista.sort((a, b) => a.titulo.localeCompare(b.titulo, "es", { sensitivity: "base" }));
+      case "bpm_asc":
+        return lista.sort((a, b) => (a.bpm ?? Infinity) - (b.bpm ?? Infinity) || porFecha(a, b));
+      case "bpm_desc":
+        return lista.sort((a, b) => (b.bpm ?? -Infinity) - (a.bpm ?? -Infinity) || porFecha(a, b));
+      case "descargas":
+        return lista.sort((a, b) => metricasDe(b.id).descargas - metricasDe(a.id).descargas || porFecha(a, b));
+      case "escuchas":
+        return lista.sort(
+          (a, b) => metricasDe(b.id).reproducciones - metricasDe(a.id).reproducciones || porFecha(a, b),
+        );
+      case "favoritos":
+        return lista.sort((a, b) => metricasDe(b.id).favoritos - metricasDe(a.id).favoritos || porFecha(a, b));
+      default:
+        return lista;
+    }
+  }, [tracks, orden, metricasDe]);
 
   const mostrarDescubrimiento = !hayFiltrosActivos && !cargando && tracks.length > 0;
   // "Recién subidos" es ahora un carrusel (ver CarruselHorizontal) en vez
   // de una fila fija, así que puede mostrar bastantes más portadas sin
   // amontonarlas — con el sidebar de PC escondido hay más ancho real
   // disponible de entrada (ver AppShellContext), se suman unas pocas más.
+  // Siempre los más nuevos de verdad (tracks viene por fecha desc), sin
+  // importar el "Ordenar por" de la lista.
   const destacados = tracks.slice(0, sidebarEscritorioAbierto ? 14 : 18);
 
-  const totalPaginas = Math.max(1, Math.ceil(tracks.length / PAGINA_TAMANO));
+  // Top géneros: los 5 con más temas, con su porcentaje sobre el total
+  // real del catálogo — se dibuja como mini barras debajo del carrusel.
+  const topGeneros = useMemo(() => {
+    if (!totalCatalogo) return [];
+    return generos
+      .map((g, i) => ({ id: g.id, nombre: g.nombre, cantidad: conteoGeneros[g.id] ?? 0, indice: i }))
+      .filter((g) => g.cantidad > 0)
+      .sort((a, b) => b.cantidad - a.cantidad)
+      .slice(0, 5)
+      .map((g) => ({ ...g, porcentaje: Math.round((g.cantidad / totalCatalogo) * 100) }));
+  }, [generos, conteoGeneros, totalCatalogo]);
+
+  // Pills: en orden alfabético (predecible aunque la lista siga
+  // creciendo) y solo los géneros que tienen al menos un tema — los
+  // recién creados y todavía vacíos siguen apareciendo en el <select>
+  // de Género, pero no ocupan lugar arriba.
+  const generosPills = useMemo(
+    () =>
+      generos
+        .map((g, i) => ({ g, i }))
+        .filter(({ g }) => (conteoGeneros[g.id] ?? 0) > 0)
+        .sort((a, b) => a.g.nombre.localeCompare(b.g.nombre, "es", { sensitivity: "base" })),
+    [generos, conteoGeneros],
+  );
+
+  const totalPaginas = Math.max(1, Math.ceil(tracksOrdenados.length / PAGINA_TAMANO));
   // Por si la lista se achica (un filtro, un borrado) y la página en la
   // que uno estaba ya no existe más.
   const paginaSegura = Math.min(pagina, totalPaginas);
-  const tracksPagina = tracks.slice(
+  const tracksPagina = tracksOrdenados.slice(
     (paginaSegura - 1) * PAGINA_TAMANO,
     paginaSegura * PAGINA_TAMANO,
   );
@@ -764,6 +876,18 @@ export default function CatalogoPage() {
               ? "Cargando…"
               : `Descubrí, escuchá y descargá los ${totalCatalogo} track${totalCatalogo === 1 ? "" : "s"} que compartió el grupo.`}
           </p>
+          <button
+            type="button"
+            onClick={() =>
+              document.getElementById("catalogo-filtros")?.scrollIntoView({ behavior: "smooth", block: "start" })
+            }
+            className="mt-5 inline-flex items-center gap-2 bg-accent text-white text-sm font-semibold px-5 py-2.5 rounded-full appearance-none border-none cursor-pointer shadow-md hover:brightness-110 transition"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 4 L20 12 L6 20 Z" />
+            </svg>
+            Explorar ahora
+          </button>
         </div>
 
         {/* Tagline manuscrito — solo modo oscuro, como en la referencia de diseño.
@@ -818,37 +942,41 @@ export default function CatalogoPage() {
         </p>
       )}
 
-      {/* Pills de género */}
-      {generos.length > 0 && (
-        <div className="flex flex-wrap gap-2 -mt-2">
+      {/* Pills de género — compactas: en celular una sola fila que se
+          desliza a lo ancho (sin barra visible), en pantallas más grandes
+          se acomodan en varias filas. Alfabéticas y sin los géneros vacíos
+          (ver generosPills). */}
+      {generosPills.length > 0 && (
+        <div className="-mt-2 -mx-4 px-4 sm:mx-0 sm:px-0 flex sm:flex-wrap gap-1.5 overflow-x-auto sm:overflow-visible scrollbar-hide">
           <button
             type="button"
             onClick={() => elegirGenero("")}
-            className={`text-sm font-semibold px-4 py-2 rounded-full appearance-none border-none cursor-pointer transition-colors ${
-              generoId === "" ? "bg-ink text-cream" : "bg-card border border-border text-body hover:border-ink"
+            className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full appearance-none cursor-pointer transition-colors ${
+              generoId === "" ? "border-none bg-ink text-cream" : "bg-card border border-border text-body hover:border-ink"
             }`}
           >
-            Todos
+            Todos{totalCatalogo != null ? ` (${totalCatalogo})` : ""}
           </button>
-          {generos.map((g, i) => (
+          {generosPills.map(({ g, i }) => (
             <button
               key={g.id}
               type="button"
               onClick={() => elegirGenero(g.id === generoId ? "" : g.id)}
-              className={`text-sm font-semibold px-4 py-2 rounded-full appearance-none cursor-pointer transition-colors ${
-                generoId === g.id
-                  ? "border-none bg-accent text-white"
-                  : `border-none ${badgeGenero(i)}`
+              className={`shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full appearance-none border-none cursor-pointer transition-colors whitespace-nowrap ${
+                generoId === g.id ? "bg-accent text-white" : badgeGenero(i)
               }`}
             >
-              {g.nombre} ({conteoGeneros[g.id] ?? 0})
+              {g.nombre} <span className="opacity-70">({conteoGeneros[g.id] ?? 0})</span>
             </button>
           ))}
         </div>
       )}
 
       {/* Filtros */}
-      <div className="bg-card rounded-2xl p-5 border border-border-soft flex flex-wrap gap-4 items-end">
+      <div
+        id="catalogo-filtros"
+        className="bg-card rounded-2xl p-5 border border-border-soft flex flex-wrap gap-4 items-end scroll-mt-24"
+      >
         <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
           <label htmlFor="busqueda" className="text-xs font-semibold text-body">
             Buscar
@@ -927,6 +1055,63 @@ export default function CatalogoPage() {
           </select>
         </div>
 
+        <div className="flex flex-col gap-1.5 min-w-[130px]">
+          <label htmlFor="duracion" className="text-xs font-semibold text-body">
+            Duración
+          </label>
+          <select
+            id="duracion"
+            value={duracion}
+            onChange={(e) => setDuracion(e.target.value as DuracionFiltro)}
+            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+          >
+            {DURACIONES.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.texto}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5 min-w-[140px]">
+          <label htmlFor="antiguedad" className="text-xs font-semibold text-body">
+            Fecha de subida
+          </label>
+          <select
+            id="antiguedad"
+            value={antiguedad}
+            onChange={(e) => setAntiguedad(e.target.value as AntiguedadFiltro)}
+            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+          >
+            {ANTIGUEDADES.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.texto}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5 min-w-[150px]">
+          <label htmlFor="orden" className="text-xs font-semibold text-body">
+            Ordenar por
+          </label>
+          <select
+            id="orden"
+            value={orden}
+            onChange={(e) => {
+              setOrden(e.target.value as OrdenCatalogo);
+              setPagina(1);
+            }}
+            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+          >
+            {ORDENES.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.texto}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {hayFiltrosActivos && (
           <button
             type="button"
@@ -966,6 +1151,14 @@ export default function CatalogoPage() {
                   <div className="relative w-44 h-44 rounded-2xl overflow-hidden border border-border-soft">
                     <Portada path={t.portada_url} alt="" className="w-full h-full object-cover" />
                     <span className="absolute inset-0 bg-ink/0 group-hover:bg-ink/30 transition-colors" />
+                    <span className="absolute top-2 left-2">
+                      <BotonCorazon
+                        variante="portada"
+                        activo={esFavorito(t.id)}
+                        cantidad={metricasDe(t.id).favoritos}
+                        onClick={() => void toggleFavorito(t.id)}
+                      />
+                    </span>
                     <span
                       title={!puedeEscucharTrack(t) ? "Necesitás una suscripción activa para escuchar esto" : undefined}
                       className="absolute bottom-2.5 right-2.5 w-9 h-9 rounded-full bg-white text-ink-fixed flex items-center justify-center shadow"
@@ -999,6 +1192,43 @@ export default function CatalogoPage() {
               );
             })}
           </CarruselHorizontal>
+
+          {/* Top géneros — qué pesa más en el catálogo; cada barra filtra
+              por ese género al tocarla. */}
+          {topGeneros.length > 0 && (
+            <div className="bg-card rounded-2xl border border-border-soft px-5 py-4 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-display font-bold text-sm m-0">Top géneros</h3>
+                <span className="text-[11px] text-muted-2">% del catálogo</span>
+              </div>
+              <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-5">
+                {topGeneros.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => elegirGenero(g.id)}
+                    title={`Ver ${g.nombre}`}
+                    className="text-left appearance-none bg-transparent border-none cursor-pointer p-0 flex flex-col gap-1 min-w-0 group/tg"
+                  >
+                    <span className="flex items-baseline justify-between gap-2 text-xs min-w-0">
+                      <span className={`font-semibold px-2 py-0.5 rounded-full truncate ${badgeGenero(g.indice)}`}>
+                        {g.nombre}
+                      </span>
+                      <span className="text-muted tabular-nums shrink-0">
+                        {g.porcentaje}% <span className="text-muted-3">· {g.cantidad}</span>
+                      </span>
+                    </span>
+                    <span className="h-1.5 w-full rounded-full bg-black/8 dark:bg-white/10 overflow-hidden">
+                      <span
+                        className="block h-full rounded-full bg-accent group-hover/tg:brightness-110 transition-[width] duration-500"
+                        style={{ width: `${Math.max(4, g.porcentaje)}%` }}
+                      />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1140,6 +1370,12 @@ export default function CatalogoPage() {
                     "Acciones" del encabezado, más arriba, con el mismo
                     w-56. */}
                 <div className="w-56 shrink-0 flex flex-wrap items-center justify-center gap-2">
+                  <BotonCorazon
+                    activo={esFavorito(t.id)}
+                    cantidad={metricasDe(t.id).favoritos}
+                    onClick={() => void toggleFavorito(t.id)}
+                  />
+
                   {puedeEditar && (
                     <button
                       type="button"
@@ -1486,31 +1722,7 @@ export default function CatalogoPage() {
           que se puede ver TODO el catálogo (ver sql/012_freemium_v2_vidriera.sql)
           sin cuenta paga, este es el momento de mostrar el precio en vez
           de dejar el intento picando con un error genérico. */}
-      {avisoSuscripcion && (
-        <div className="fixed inset-0 bg-overlay flex items-center justify-center z-50 px-4">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 text-center items-center">
-            <span className="text-3xl" aria-hidden="true">
-              🔒
-            </span>
-            <h2 className="font-display font-bold text-lg m-0">Necesitás una suscripción activa</h2>
-            <p className="text-sm text-body leading-relaxed m-0">{avisoSuscripcion}</p>
-            <Link
-              to="/suscripcion"
-              onClick={() => setAvisoSuscripcion(null)}
-              className="text-sm font-semibold bg-accent text-white px-6 py-3 rounded-full no-underline w-full"
-            >
-              Suscribirme
-            </Link>
-            <button
-              type="button"
-              onClick={() => setAvisoSuscripcion(null)}
-              className="text-sm font-semibold text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer"
-            >
-              Ahora no
-            </button>
-          </div>
-        </div>
-      )}
+      <AvisoSuscripcionModal mensaje={avisoSuscripcion} onCerrar={() => setAvisoSuscripcion(null)} />
     </div>
   );
 }
