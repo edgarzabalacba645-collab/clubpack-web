@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { API_BASE_URL } from "./lib/supabase";
 import LoginPage from "./pages/LoginPage";
 import CatalogoPage from "./pages/CatalogoPage";
 import SubirTrackPage from "./pages/SubirTrackPage";
@@ -39,7 +41,30 @@ function AppShellConProveedores() {
   );
 }
 
+/**
+ * El backend (Render, plan gratis) se duerme a los 15 min sin tráfico y
+ * tarda 50+ segundos en volver a arrancar — eso es lo que se siente como
+ * demora al darle play recién abierta la app, porque hoy ese despertar
+ * recién arranca cuando el usuario toca play (obtenerUrlDescarga pega
+ * contra el backend). Este ping no bloquea nada ni espera respuesta: solo
+ * adelanta el despertar al momento en que se abre la app (antes incluso
+ * de loguearse), para que la mayor parte de esos 50s ya haya pasado
+ * mientras el usuario todavía está eligiendo qué tema poner.
+ */
+function usarDespertarBackend() {
+  useEffect(() => {
+    if (!API_BASE_URL) return;
+    fetch(`${API_BASE_URL}/health`).catch(() => {
+      // Sin red, o el backend tardando en arrancar — no es nada que
+      // mostrarle al usuario acá, la próxima acción real ya mostrará su
+      // propio estado de carga si todavía no respondió.
+    });
+  }, []);
+}
+
 export default function App() {
+  usarDespertarBackend();
+
   return (
     <BrowserRouter>
       <Routes>
