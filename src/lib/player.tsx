@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import WaveSurfer from "wavesurfer.js";
+import { supabase } from "./supabase";
 
 /**
  * Datos livianos de un track para la cola de reproducción continua —
@@ -151,6 +152,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // Segundo <audio> aparte, de silencio puro en loop — ver el comentario
   // grande más abajo (donde se arranca) sobre por qué hace falta.
   const audioSilencioRef = useRef<HTMLAudioElement | null>(null);
+  // ¿Ya se anotó la reproducción del tema cargado actualmente? Se anota
+  // UNA vez por carga de tema, en el primer "play" real (no al pedir la
+  // URL firmada: esa se precarga para el tema siguiente antes de saber
+  // si va a llegar a sonar, y reanudar después de una pausa tampoco
+  // cuenta como escucha nueva). Ver sql/014_actividad_por_usuario.sql.
+  const reproduccionRegistradaRef = useRef(false);
 
   // Intento de forzar a Android a repintar la notificación de la pantalla
   // bloqueada (para corregir el ícono de play/pausa que se le queda
@@ -327,6 +334,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!trackActual || !contenedorElRef.current) return;
     setEstado("cargando");
     setError(null);
+    // Tema nuevo (o el mismo recargado): su escucha todavía no se anotó.
+    reproduccionRegistradaRef.current = false;
 
     // Reproducción continua en el celular: antes cada tema destruía la
     // instancia de wavesurfer y creaba una nueva — eso crea un <audio> del
@@ -414,6 +423,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         repintarMetadata();
         setError(null);
         setEstado("sonando");
+        // Anotar la escucha para el visor de actividad del admin — una
+        // sola vez por tema cargado (ver reproduccionRegistradaRef). Si
+        // falla, no pasa nada: es un log, nunca debe afectar el audio.
+        const idSonando = trackActualIdRef.current;
+        if (idSonando && !reproduccionRegistradaRef.current) {
+          reproduccionRegistradaRef.current = true;
+          supabase
+            .rpc("registrar_reproduccion", { p_track_id: idSonando })
+            .then(({ error: errRegistro }) => {
+              if (errRegistro) console.warn("No se pudo registrar la reproducción:", errRegistro.message);
+            });
+        }
       });
       ws.on("timeupdate", (posicion) => {
         if ("mediaSession" in navigator && "setPositionState" in navigator.mediaSession) {

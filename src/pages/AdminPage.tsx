@@ -16,9 +16,19 @@ import {
   type ItemUsoCloudflare,
   type TrackPendientePeaks,
 } from "../lib/api";
-import { formatearBpm, formatearFecha, formatearMonto, mensajeErrorAmigable } from "../lib/format";
+import {
+  formatearBpm,
+  formatearFecha,
+  formatearFechaHora,
+  formatearMonto,
+  mensajeErrorAmigable,
+  rotuloEstadoSuscripcion,
+} from "../lib/format";
 import type {
+  ActividadUsuario,
   ConfiguracionCatalogo,
+  DetalleActividad,
+  TipoActividad,
   ConfiguracionSuscripcion,
   ConfiguracionSuscripcionUpdate,
   EstadoSuscripcion,
@@ -36,10 +46,19 @@ import Portada from "../components/Portada";
 // Top 50 ya no vive acá — ahora es su propia página (/top50), visible
 // para cualquier miembro y no solo para admins (ver Top50Page.tsx y
 // sql/007_top50_para_todos.sql).
-type Tab = "usuarios" | "generos" | "herramientas" | "duplicados" | "catalogo" | "suscripcion" | "uso";
+type Tab =
+  | "usuarios"
+  | "actividad"
+  | "generos"
+  | "herramientas"
+  | "duplicados"
+  | "catalogo"
+  | "suscripcion"
+  | "uso";
 
 const TABS: { id: Tab; etiqueta: string }[] = [
   { id: "usuarios", etiqueta: "Usuarios" },
+  { id: "actividad", etiqueta: "Actividad" },
   { id: "generos", etiqueta: "Géneros" },
   { id: "herramientas", etiqueta: "Herramientas DJ" },
   { id: "duplicados", etiqueta: "Duplicados" },
@@ -71,6 +90,7 @@ export default function AdminPage() {
       </div>
 
       {tab === "usuarios" && <UsuariosTab />}
+      {tab === "actividad" && <ActividadTab />}
       {tab === "generos" && <GenerosTab />}
       {tab === "herramientas" && <HerramientasTab />}
       {tab === "duplicados" && <DuplicadosTab />}
@@ -258,6 +278,243 @@ function UsuariosTab() {
               >
                 Borrar
               </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================
+// ACTIVIDAD POR USUARIO
+// ============================================================
+// Todo sale de dos funciones SQL solo-admin (ver
+// sql/014_actividad_por_usuario.sql): el resumen por usuario y, al
+// desplegar uno, su detalle de movimientos. Las reproducciones las
+// anota el player (lib/player.tsx) una vez por tema que arranca a sonar.
+
+const ROTULO_TIPO: Record<TipoActividad, { texto: string; clase: string }> = {
+  subida: { texto: "Subió", clase: "bg-accent-lime/30 text-ink" },
+  descarga: { texto: "Bajó", clase: "bg-accent/15 text-accent" },
+  reproduccion: { texto: "Escuchó", clase: "bg-black/5 dark:bg-white/10 text-body" },
+};
+
+function ActividadTab() {
+  const [filas, setFilas] = useState<ActividadUsuario[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [abiertoId, setAbiertoId] = useState<string | null>(null);
+  const [detalles, setDetalles] = useState<Record<string, DetalleActividad[]>>({});
+  const [cargandoDetalleId, setCargandoDetalleId] = useState<string | null>(null);
+  const [filtroTipo, setFiltroTipo] = useState<TipoActividad | "todo">("todo");
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase.rpc("obtener_actividad_por_usuario");
+      if (error) throw error;
+      setFilas((data ?? []) as ActividadUsuario[]);
+    } catch (e) {
+      setError(mensajeErrorAmigable(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function abrir(usuarioId: string) {
+    if (abiertoId === usuarioId) {
+      setAbiertoId(null);
+      return;
+    }
+    setAbiertoId(usuarioId);
+    setFiltroTipo("todo");
+    if (detalles[usuarioId]) return;
+    setCargandoDetalleId(usuarioId);
+    setError(null);
+    try {
+      const { data, error } = await supabase.rpc("obtener_detalle_actividad_usuario", {
+        p_usuario_id: usuarioId,
+        p_limite: 200,
+      });
+      if (error) throw error;
+      setDetalles((prev) => ({ ...prev, [usuarioId]: (data ?? []) as DetalleActividad[] }));
+    } catch (e) {
+      setError(mensajeErrorAmigable(e));
+    } finally {
+      setCargandoDetalleId(null);
+    }
+  }
+
+  const filasFiltradas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return filas;
+    return filas.filter(
+      (f) => (f.nombre_dj ?? "").toLowerCase().includes(q) || (f.email ?? "").toLowerCase().includes(q),
+    );
+  }, [filas, busqueda]);
+
+  const totales = useMemo(
+    () =>
+      filas.reduce(
+        (acc, f) => ({
+          subidas: acc.subidas + f.subidas,
+          descargas: acc.descargas + f.descargas,
+          reproducciones: acc.reproducciones + f.reproducciones,
+        }),
+        { subidas: 0, descargas: 0, reproducciones: 0 },
+      ),
+    [filas],
+  );
+
+  if (cargando) return <p className="text-sm text-muted m-0">Cargando…</p>;
+
+  return (
+    <div className="flex flex-col gap-4 max-w-3xl">
+      <p className="text-sm text-muted m-0">
+        Cuánto subió, bajó y escuchó cada usuario. Tocá un usuario para ver sus últimos movimientos
+        (hasta 200). Las escuchas se cuentan desde que se activó este visor — lo anterior no quedó
+        registrado.
+      </p>
+      {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
+
+      <div className="flex flex-wrap gap-3">
+        {[
+          { etiqueta: "Subidas", valor: totales.subidas },
+          { etiqueta: "Descargas", valor: totales.descargas },
+          { etiqueta: "Reproducciones", valor: totales.reproducciones },
+          { etiqueta: "Usuarios", valor: filas.length },
+        ].map((t) => (
+          <div key={t.etiqueta} className="bg-card rounded-xl border border-border-soft px-4 py-2.5 min-w-[120px]">
+            <div className="text-[11px] uppercase tracking-wide text-muted-2">{t.etiqueta}</div>
+            <div className="font-display font-bold text-xl leading-tight">{t.valor.toLocaleString("es-AR")}</div>
+          </div>
+        ))}
+      </div>
+
+      <input
+        type="search"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        placeholder="Buscar por nombre o email…"
+        className="w-full min-w-0 px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+      />
+
+      {filasFiltradas.length === 0 && <p className="text-sm text-muted m-0">No hay usuarios que coincidan.</p>}
+
+      {filasFiltradas.map((f) => {
+        const abierto = abiertoId === f.usuario_id;
+        const detalle = detalles[f.usuario_id];
+        const detalleFiltrado =
+          detalle && filtroTipo !== "todo" ? detalle.filter((d) => d.tipo === filtroTipo) : detalle;
+        return (
+          <div key={f.usuario_id} className="bg-card rounded-2xl border border-border-soft overflow-hidden">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => abrir(f.usuario_id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  abrir(f.usuario_id);
+                }
+              }}
+              aria-expanded={abierto}
+              className="w-full p-4 flex flex-wrap items-center gap-x-4 gap-y-2 cursor-pointer select-none"
+            >
+              <div className="min-w-[160px] flex-1">
+                <div className="font-semibold text-sm">
+                  {f.nombre_dj || f.email}
+                  {f.rol === "admin" && <span className="ml-2 text-[11px] font-normal text-muted-2">admin</span>}
+                </div>
+                <div className="text-xs text-muted">
+                  {f.email} · {rotuloEstadoSuscripcion(f.estado_suscripcion)}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs">
+                <span className="px-2.5 py-1 rounded-full bg-accent-lime/30 font-semibold" title="Temas subidos">
+                  ↑ {f.subidas}
+                </span>
+                <span className="px-2.5 py-1 rounded-full bg-accent/15 text-accent font-semibold" title="Descargas">
+                  ↓ {f.descargas}
+                </span>
+                <span
+                  className="px-2.5 py-1 rounded-full bg-black/5 dark:bg-white/10 font-semibold"
+                  title="Reproducciones"
+                >
+                  ▶ {f.reproducciones}
+                </span>
+              </div>
+
+              <div className="text-xs text-muted-2 w-full sm:w-auto sm:min-w-[130px] sm:text-right">
+                {f.ultima_actividad ? `Último: ${formatearFechaHora(f.ultima_actividad)}` : "Sin actividad"}
+              </div>
+            </div>
+
+            {abierto && (
+              <div className="border-t border-border-soft px-4 py-3 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {(
+                    [
+                      { id: "todo", texto: "Todo" },
+                      { id: "subida", texto: "Subidas" },
+                      { id: "descarga", texto: "Descargas" },
+                      { id: "reproduccion", texto: "Reproducciones" },
+                    ] as { id: TipoActividad | "todo"; texto: string }[]
+                  ).map((op) => (
+                    <button
+                      key={op.id}
+                      type="button"
+                      onClick={() => setFiltroTipo(op.id)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-full appearance-none border-none cursor-pointer transition-colors ${
+                        filtroTipo === op.id ? "bg-ink text-cream" : "bg-black/5 dark:bg-white/10 text-muted hover:text-ink"
+                      }`}
+                    >
+                      {op.texto}
+                    </button>
+                  ))}
+                  <span className="text-xs text-muted-2 ml-auto">
+                    Alta: {formatearFechaHora(f.fecha_alta).slice(0, 10)}
+                  </span>
+                </div>
+
+                {cargandoDetalleId === f.usuario_id && <p className="text-sm text-muted m-0">Cargando…</p>}
+
+                {detalleFiltrado && detalleFiltrado.length === 0 && (
+                  <p className="text-sm text-muted m-0">Nada por acá todavía.</p>
+                )}
+
+                {detalleFiltrado && detalleFiltrado.length > 0 && (
+                  <ul className="list-none m-0 p-0 flex flex-col divide-y divide-border-soft">
+                    {detalleFiltrado.map((d, i) => (
+                      <li key={`${d.tipo}-${d.track_id}-${d.fecha}-${i}`} className="py-2 flex items-start gap-3 min-w-0">
+                        <span
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 w-[68px] text-center mt-0.5 ${ROTULO_TIPO[d.tipo].clase}`}
+                        >
+                          {ROTULO_TIPO[d.tipo].texto}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm break-words">
+                            {d.titulo}
+                            {d.remixer && <span className="text-muted"> — {d.remixer}</span>}
+                          </div>
+                          <div className="text-xs text-muted-2 sm:hidden">{formatearFechaHora(d.fecha)}</div>
+                        </div>
+                        <span className="text-xs text-muted-2 shrink-0 hidden sm:block mt-0.5">
+                          {formatearFechaHora(d.fecha)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
         );

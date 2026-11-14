@@ -78,6 +78,31 @@ export interface Descarga {
   fecha: string;
 }
 
+/** Fila del resumen de obtener_actividad_por_usuario() (solo admin). */
+export interface ActividadUsuario {
+  usuario_id: string;
+  nombre_dj: string | null;
+  email: string | null;
+  rol: Rol;
+  estado_suscripcion: EstadoSuscripcion;
+  fecha_alta: string;
+  subidas: number;
+  descargas: number;
+  reproducciones: number;
+  ultima_actividad: string | null;
+}
+
+export type TipoActividad = "subida" | "descarga" | "reproduccion";
+
+/** Fila del detalle de obtener_detalle_actividad_usuario() (solo admin). */
+export interface DetalleActividad {
+  tipo: TipoActividad;
+  track_id: string;
+  titulo: string;
+  remixer: string | null;
+  fecha: string;
+}
+
 export type TipoPago = "mercadopago" | "manual";
 
 export interface Pago {

@@ -73,6 +73,18 @@ export function formatearFecha(iso: string | null): string {
   return d.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
 }
 
+/** Fecha y hora en dd/mm/yyyy HH:mm, p. ej. "04/11/2026 18:30". */
+export function formatearFechaHora(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()} ${hh}:${mi}`;
+}
+
 /** Etiqueta legible para perfiles.estado_suscripcion. */
 export function rotuloEstadoSuscripcion(estado?: string | null): string {
   switch (estado) {
