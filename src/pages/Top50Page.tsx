@@ -6,19 +6,25 @@ interface FilaRanking {
   trackId: string;
   titulo: string;
   remixer: string | null;
-  descargas: number;
+  valor: number;
 }
 
 /*
  * Antes esto vivía solo como una pestaña adentro de AdminPage. Ahora es
  * su propia página, visible para cualquier miembro (no solo admins) —
- * lee el ranking ya agregado desde la función obtener_ranking_top_50()
- * (ver sql/007_top50_para_todos.sql) en vez de leer la tabla descargas
- * directo: esa tabla solo deja ver las descargas propias por RLS, así
- * que un miembro normal necesitaba sí o sí una función agregada del
- * lado del servidor para ver el ranking de todo el grupo.
+ * lee el ranking ya agregado desde funciones del servidor en vez de
+ * leer las tablas descargas/reproducciones directo: esas tablas solo
+ * dejan ver las filas propias por RLS, así que un miembro normal
+ * necesita sí o sí una función agregada del lado del servidor para ver
+ * el ranking de todo el grupo.
+ *
+ * Dos rankings lado a lado, cada uno con su propia función:
+ *   - Más descargados: obtener_ranking_top_50() (sql/007_top50_para_todos.sql)
+ *   - Más escuchados: obtener_ranking_mas_escuchados() (sql/018_ranking_mas_escuchados.sql)
+ * Cuentan cosas distintas (bajar un tema vs. que arranque a sonar de
+ * verdad en el player) y pueden salir en orden distinto.
  */
-export default function Top50Page() {
+function useRanking(rpc: string, claveValor: string) {
   const [ranking, setRanking] = useState<FilaRanking[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,18 +34,16 @@ export default function Top50Page() {
       setCargando(true);
       setError(null);
       try {
-        const { data, error } = await supabase.rpc("obtener_ranking_top_50");
+        const { data, error } = await supabase.rpc(rpc);
         if (error) throw error;
 
         setRanking(
-          ((data ?? []) as { track_id: string; titulo: string; remixer: string | null; descargas: number }[]).map(
-            (f) => ({
-              trackId: f.track_id,
-              titulo: f.titulo,
-              remixer: f.remixer,
-              descargas: f.descargas,
-            })
-          )
+          ((data ?? []) as Record<string, unknown>[]).map((f) => ({
+            trackId: f.track_id as string,
+            titulo: f.titulo as string,
+            remixer: f.remixer as string | null,
+            valor: Number(f[claveValor]),
+          })),
         );
       } catch (e) {
         setError(mensajeErrorAmigable(e));
@@ -47,23 +51,40 @@ export default function Top50Page() {
         setCargando(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  return { ranking, cargando, error };
+}
+
+function TablaRanking({
+  titulo,
+  bajada,
+  mensajeVacio,
+  datos,
+}: {
+  titulo: string;
+  bajada: string;
+  mensajeVacio: string;
+  datos: { ranking: FilaRanking[]; cargando: boolean; error: string | null };
+}) {
+  const { ranking, cargando, error } = datos;
+
   return (
-    <div className="flex flex-col gap-6">
+    <section className="flex flex-col gap-3">
       <div>
-        <h1 className="font-display font-extrabold text-3xl tracking-[-0.5px] m-0">Top 50</h1>
-        <p className="text-muted text-sm mt-1">Los temas más descargados por todo el grupo.</p>
+        <h2 className="font-display font-bold text-lg m-0">{titulo}</h2>
+        <p className="text-muted text-sm mt-0.5 m-0">{bajada}</p>
       </div>
 
       {cargando && <p className="text-sm text-muted m-0">Cargando…</p>}
       {!cargando && error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
       {!cargando && !error && ranking.length === 0 && (
-        <p className="text-sm text-muted m-0">Todavía no hay descargas registradas.</p>
+        <p className="text-sm text-muted m-0">{mensajeVacio}</p>
       )}
 
       {!cargando && !error && ranking.length > 0 && (
-        <div className="bg-card rounded-2xl border border-border-soft overflow-hidden max-w-2xl">
+        <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
           {ranking.map((f, i) => (
             <div
               key={f.trackId}
@@ -74,11 +95,40 @@ export default function Top50Page() {
                 <div className="font-semibold text-sm truncate">{f.titulo}</div>
                 {f.remixer && <div className="text-xs text-muted truncate">{f.remixer}</div>}
               </div>
-              <span className="text-sm font-bold shrink-0">{f.descargas}</span>
+              <span className="text-sm font-bold shrink-0">{f.valor}</span>
             </div>
           ))}
         </div>
       )}
+    </section>
+  );
+}
+
+export default function Top50Page() {
+  const descargas = useRanking("obtener_ranking_top_50", "descargas");
+  const escuchados = useRanking("obtener_ranking_mas_escuchados", "reproducciones");
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="font-display font-extrabold text-3xl tracking-[-0.5px] m-0">Top 50</h1>
+        <p className="text-muted text-sm mt-1">Lo más popular del catálogo, para todo el grupo.</p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <TablaRanking
+          titulo="Más descargados"
+          bajada="Los temas que más se bajaron."
+          mensajeVacio="Todavía no hay descargas registradas."
+          datos={descargas}
+        />
+        <TablaRanking
+          titulo="Más escuchados"
+          bajada="Los temas que más veces arrancaron a sonar en el player."
+          mensajeVacio="Todavía no hay reproducciones registradas."
+          datos={escuchados}
+        />
+      </div>
     </div>
   );
 }
