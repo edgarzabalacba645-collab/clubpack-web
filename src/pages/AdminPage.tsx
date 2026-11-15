@@ -165,16 +165,18 @@ function UsuariosTab() {
     }
   }
 
-  // Borra la fila de perfiles (nombre, rol, suscripción) — no la cuenta
-  // de login en sí (eso vive en auth.users y hace falta la service_role
-  // key para tocarlo, que este proyecto no usa nunca en el backend; ver
-  // sql/013_borrar_usuarios.sql). Sus temas subidos quedan igual, sin
-  // autor; sus mensajes de chat sí se borran con él.
+  // Borrado COMPLETO: cuenta de login (auth.users) + perfil + actividad
+  // personal (descargas, reproducciones, favoritos, mensajes de chat).
+  // No usa la Admin API ni la service_role key — es una función SQL
+  // "security definer" (borrar_usuario_completo, solo-admin) que borra
+  // auth.users directo; la cascada ya definida en el schema hace el
+  // resto sola. Sus temas subidos y su historial de pagos NO se borran,
+  // quedan sin usuario asociado. Ver sql/017_borrar_usuario_completo.sql.
   async function borrar(u: Perfil) {
     setOcupadoId(u.id);
     setError(null);
     try {
-      const { error } = await supabase.from("perfiles").delete().eq("id", u.id);
+      const { error } = await supabase.rpc("borrar_usuario_completo", { p_usuario_id: u.id });
       if (error) throw error;
       setUsuarios((prev) => prev.filter((p) => p.id !== u.id));
     } catch (e) {
@@ -194,9 +196,9 @@ function UsuariosTab() {
         Suscripción, que mantiene esto sincronizado solo.
       </p>
       <p className="text-xs text-muted-2 m-0">
-        "Borrar" saca al usuario de esta lista y de toda la app (pierde el acceso). No borra su
-        cuenta de login en sí — para eso hace falta entrar a Supabase Dashboard → Authentication →
-        Users y borrarla ahí a mano.
+        "Borrar" es definitivo: se va de esta lista, pierde el acceso y su cuenta de login se borra
+        por completo (su email queda libre para registrarse de nuevo si quiere). Sus temas subidos y
+        su historial de pagos no se tocan, quedan sin usuario asociado.
       </p>
       {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
 
