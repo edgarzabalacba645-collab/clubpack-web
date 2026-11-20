@@ -20,7 +20,7 @@ import {
   mensajeErrorAmigable,
 } from "../lib/format";
 import type { Genero, PlaylistInsert, PlaylistTrackInsert } from "../lib/types";
-import { useAuth, tieneAccesoActivo, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
+import { useAuth, tieneAccesoActivo, esLicenciaDj, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
 import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { usePlayer } from "../lib/player";
 import { useFavoritos } from "../lib/favoritos";
@@ -867,7 +867,10 @@ export default function CatalogoPage() {
         />
         <div className="relative max-w-xl">
           <h1 className="font-display font-extrabold text-[clamp(1.6rem,3.5vw,2.4rem)] leading-[1.08] tracking-[-0.5px] m-0 text-ink dark:text-white">
-            {permiteSubidaColaboradores
+            {/* "Colaborativo" solo tiene sentido para quien podría subir —
+                licencia Simple no sube nada, así que no corresponde
+                prometerle colaboración (ver sql/019_tipo_licencia.sql). */}
+            {permiteSubidaColaboradores && esLicenciaDj(perfil)
               ? "El catálogo colaborativo de música para DJs"
               : "El catálogo de música para DJs"}
           </h1>
@@ -892,8 +895,9 @@ export default function CatalogoPage() {
 
         {/* Tagline manuscrito — solo modo oscuro, como en la referencia de diseño.
             Oculto en mobile: a ese ancho se superpone con el título. Solo
-            tiene sentido mientras la subida es colaborativa de verdad. */}
-        {permiteSubidaColaboradores && (
+            tiene sentido mientras la subida es colaborativa de verdad, y
+            para quien podría subir (licencia DJ, sql/019_tipo_licencia.sql). */}
+        {permiteSubidaColaboradores && esLicenciaDj(perfil) && (
           <p
             className="hidden dark:sm:block absolute right-9 top-9 font-script text-3xl leading-[1.05] text-white/90 rotate-[-4deg] m-0 text-right"
             style={{ textShadow: "0 2px 10px rgba(0,0,0,0.35)" }}
@@ -912,8 +916,10 @@ export default function CatalogoPage() {
           porque cuando el admin cierra las subidas, AppShell le esconde a
           todos los no-admin el botón "Subir Temas" (ver puedeVerBotonSubir
           ahí); sin este aviso acá, nadie se entera de que puede mandar el
-          tema por el chat en vez de simplemente no poder subirlo. */}
-      {!permiteSubidaColaboradores && perfil?.rol !== "admin" && (
+          tema por el chat en vez de simplemente no poder subirlo. Además
+          exige licencia DJ: a un Simple no le compete este aviso, nunca
+          podría subir aunque las subidas estuvieran abiertas. */}
+      {!permiteSubidaColaboradores && perfil?.rol !== "admin" && esLicenciaDj(perfil) && (
         <p className="text-sm bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 m-0">
           👋 Hola DJs: por ahora la subida de temas al catálogo está suspendida. Si tenés un
           tema para sumar, compartilo por el{" "}

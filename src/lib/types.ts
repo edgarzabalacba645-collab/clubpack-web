@@ -3,6 +3,9 @@
 
 export type Rol = "miembro" | "admin";
 export type EstadoSuscripcion = "activo" | "vencido" | "cancelado" | "pendiente";
+// Ver sql/019_tipo_licencia.sql. simple = solo escucha. dj = escucha +
+// descarga + carga (como era todo antes de esta columna).
+export type TipoLicencia = "simple" | "dj";
 export type EstadoTrack = "activo" | "duplicado_sospechoso" | "eliminado";
 export type TipoDuplicado = "fingerprint_exacto" | "texto_similar";
 export type EstadoDuplicado = "pendiente" | "descartado" | "resuelto";
@@ -13,6 +16,7 @@ export interface Perfil {
   email: string | null;
   rol: Rol;
   estado_suscripcion: EstadoSuscripcion;
+  tipo_licencia: TipoLicencia;
   mp_subscription_id: string | null;
   fecha_alta: string;
 }

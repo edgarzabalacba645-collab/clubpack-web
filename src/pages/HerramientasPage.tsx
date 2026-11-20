@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { mensajeErrorAmigable } from "../lib/format";
-import { useAuth, tieneAccesoActivo } from "../lib/auth";
+import { useAuth, tieneAccesoActivo, esLicenciaDj } from "../lib/auth";
 import type { HerramientaDJ } from "../lib/types";
 import Portada from "../components/Portada";
 
@@ -56,13 +56,27 @@ export default function HerramientasPage() {
         </p>
       )}
 
-      {!cargando && !error && tieneAccesoActivo(perfil) && herramientas.length === 0 && (
+      {/* Licencia Simple no ve esta sección (sql/019_tipo_licencia.sql) —
+          son recursos pensados para DJs (plugins, packs), no para quien
+          solo escucha. A diferencia del resto del gateo de esta
+          funcionalidad, esto es solo del lado del frontend: la tabla
+          herramientas_dj en sí no distingue por tipo_licencia por RLS,
+          así que si algún día esto necesita ser más estricto, hay que
+          agregarlo ahí también. */}
+      {!cargando && !error && tieneAccesoActivo(perfil) && !esLicenciaDj(perfil) && (
+        <p className="text-sm bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 m-0">
+          Las herramientas DJ son para cuentas con licencia DJ. Tu cuenta es licencia Simple
+          (solo escucha).
+        </p>
+      )}
+
+      {!cargando && !error && tieneAccesoActivo(perfil) && esLicenciaDj(perfil) && herramientas.length === 0 && (
         <div className="bg-card rounded-2xl border border-border-soft p-8 text-center text-muted text-sm">
           Todavía no hay herramientas cargadas.
         </div>
       )}
 
-      {!cargando && !error && tieneAccesoActivo(perfil) && herramientas.length > 0 && (
+      {!cargando && !error && tieneAccesoActivo(perfil) && esLicenciaDj(perfil) && herramientas.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {herramientas.map((h) => (
             <div

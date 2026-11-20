@@ -42,6 +42,7 @@ import type {
   Pago,
   Perfil,
   Rol,
+  TipoLicencia,
 } from "../lib/types";
 import Portada from "../components/Portada";
 
@@ -109,11 +110,15 @@ export default function AdminPage() {
 
 const ROLES: Rol[] = ["miembro", "admin"];
 const ESTADOS_SUSCRIPCION: EstadoSuscripcion[] = ["activo", "vencido", "cancelado", "pendiente"];
+// Ver sql/019_tipo_licencia.sql.
+const TIPOS_LICENCIA: TipoLicencia[] = ["simple", "dj"];
 
 function UsuariosTab() {
   const { session } = useAuth();
   const [usuarios, setUsuarios] = useState<Perfil[]>([]);
-  const [ediciones, setEdiciones] = useState<Record<string, { rol: Rol; estado_suscripcion: EstadoSuscripcion }>>({});
+  const [ediciones, setEdiciones] = useState<
+    Record<string, { rol: Rol; estado_suscripcion: EstadoSuscripcion; tipo_licencia: TipoLicencia }>
+  >({});
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [guardandoId, setGuardandoId] = useState<string | null>(null);
@@ -134,7 +139,10 @@ function UsuariosTab() {
       setUsuarios(lista);
       setEdiciones(
         Object.fromEntries(
-          lista.map((u) => [u.id, { rol: u.rol, estado_suscripcion: u.estado_suscripcion }]),
+          lista.map((u) => [
+            u.id,
+            { rol: u.rol, estado_suscripcion: u.estado_suscripcion, tipo_licencia: u.tipo_licencia },
+          ]),
         ),
       );
     } catch (e) {
@@ -152,11 +160,24 @@ function UsuariosTab() {
     try {
       const { error } = await supabase
         .from("perfiles")
-        .update({ rol: edicion.rol, estado_suscripcion: edicion.estado_suscripcion })
+        .update({
+          rol: edicion.rol,
+          estado_suscripcion: edicion.estado_suscripcion,
+          tipo_licencia: edicion.tipo_licencia,
+        })
         .eq("id", u.id);
       if (error) throw error;
       setUsuarios((prev) =>
-        prev.map((p) => (p.id === u.id ? { ...p, rol: edicion.rol, estado_suscripcion: edicion.estado_suscripcion } : p)),
+        prev.map((p) =>
+          p.id === u.id
+            ? {
+                ...p,
+                rol: edicion.rol,
+                estado_suscripcion: edicion.estado_suscripcion,
+                tipo_licencia: edicion.tipo_licencia,
+              }
+            : p,
+        ),
       );
     } catch (e) {
       setError(mensajeErrorAmigable(e));
@@ -196,6 +217,10 @@ function UsuariosTab() {
         Suscripción, que mantiene esto sincronizado solo.
       </p>
       <p className="text-xs text-muted-2 m-0">
+        Licencia Simple: solo escucha. Licencia DJ: escucha + descarga + sube temas. Las cuentas que
+        ya estaban antes de agregar esto quedaron todas en DJ — las nuevas arrancan en Simple.
+      </p>
+      <p className="text-xs text-muted-2 m-0">
         "Borrar" es definitivo: se va de esta lista, pierde el acceso y su cuenta de login se borra
         por completo (su email queda libre para registrarse de nuevo si quiere). Sus temas subidos y
         su historial de pagos no se tocan, quedan sin usuario asociado.
@@ -203,8 +228,16 @@ function UsuariosTab() {
       {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
 
       {usuarios.map((u) => {
-        const edicion = ediciones[u.id] ?? { rol: u.rol, estado_suscripcion: u.estado_suscripcion };
-        const huboCambios = edicion.rol !== u.rol || edicion.estado_suscripcion !== u.estado_suscripcion;
+        const edicion =
+          ediciones[u.id] ?? {
+            rol: u.rol,
+            estado_suscripcion: u.estado_suscripcion,
+            tipo_licencia: u.tipo_licencia,
+          };
+        const huboCambios =
+          edicion.rol !== u.rol ||
+          edicion.estado_suscripcion !== u.estado_suscripcion ||
+          edicion.tipo_licencia !== u.tipo_licencia;
         return (
           <div key={u.id} className="bg-card rounded-2xl border border-border-soft p-4 flex flex-wrap items-center gap-4">
             <div className="min-w-[160px] flex-1">
@@ -239,6 +272,24 @@ function UsuariosTab() {
               {ESTADOS_SUSCRIPCION.map((s) => (
                 <option key={s} value={s}>
                   {s}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={edicion.tipo_licencia}
+              onChange={(e) =>
+                setEdiciones((prev) => ({
+                  ...prev,
+                  [u.id]: { ...edicion, tipo_licencia: e.target.value as TipoLicencia },
+                }))
+              }
+              className="px-3 py-1.5 rounded-lg border border-border text-sm bg-cream-soft"
+              title="Licencia: Simple (solo escucha) o DJ (escucha + descarga + carga)"
+            >
+              {TIPOS_LICENCIA.map((t) => (
+                <option key={t} value={t}>
+                  {t === "dj" ? "Licencia DJ" : "Licencia Simple"}
                 </option>
               ))}
             </select>

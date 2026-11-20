@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { CAMELOT_KEYS, formatearDuracion, tituloDesdeNombreArchivo } from "../lib/format";
-import { useAuth } from "../lib/auth";
+import { useAuth, esLicenciaDj } from "../lib/auth";
 import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { useSubida } from "../lib/subida";
 import CargaMasiva from "../components/CargaMasiva";
@@ -67,6 +67,25 @@ export default function SubirTrackPage() {
 
   const hayDuplicados = (analisis?.duplicados_sospechosos.length ?? 0) > 0;
   const puedeConfirmar = !hayDuplicados || confirmoDuplicado;
+
+  // Licencia Simple no sube temas, nunca, tenga el admin las subidas de
+  // colaboradores abiertas o no (sql/019_tipo_licencia.sql) — mensaje
+  // distinto al de "subidas suspendidas" de abajo, porque acá el motivo
+  // es la licencia de este usuario, no una decisión temporal del admin.
+  // Mismo cinturón de seguridad: el rechazo real es el de RLS/backend.
+  if (!cargandoConfig && perfil?.rol !== "admin" && !esLicenciaDj(perfil)) {
+    return (
+      <div className="flex flex-col items-start gap-3 py-10 max-w-md">
+        <h1 className="font-display font-extrabold text-2xl tracking-[-0.5px] m-0">
+          Esto es para licencia DJ
+        </h1>
+        <p className="text-body text-base leading-relaxed m-0">
+          Tu cuenta es licencia Simple (solo escucha), así que no podés subir temas. Si querés
+          pasarte a licencia DJ, consultá con un admin del grupo.
+        </p>
+      </div>
+    );
+  }
 
   // El admin siempre puede subir — para el resto, si el admin cerró las
   // subidas (ver sql/010_control_subidas.sql), esto es un cinturón de

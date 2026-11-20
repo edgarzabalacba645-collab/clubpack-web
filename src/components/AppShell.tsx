@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { useAuth } from "../lib/auth";
+import { esLicenciaDj, useAuth } from "../lib/auth";
 import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { usePlayer } from "../lib/player";
 import { formatearDuracion } from "../lib/format";
@@ -383,7 +383,7 @@ function BarraReproductor() {
   );
 }
 
-const navItems: { to: string; label: string; icon: ReactNode }[] = [
+const NAV_ITEMS_BASE: { to: string; label: string; icon: ReactNode }[] = [
   { to: "/catalogo", label: "Inicio", icon: <IconHome /> },
   { to: "/novedades", label: "Novedades", icon: <IconSparkle /> },
   { to: "/favoritos", label: "Favoritos", icon: <IconHeart /> },
@@ -464,8 +464,15 @@ export default function AppShell() {
   const { perfil, signOut } = useAuth();
   const { permiteSubidaColaboradores } = useConfiguracionCatalogo();
   // El admin siempre ve el botón de subir (es quien sube cuando está
-  // cerrado para el resto) — ver sql/010_control_subidas.sql.
-  const puedeVerBotonSubir = perfil?.rol === "admin" || permiteSubidaColaboradores;
+  // cerrado para el resto) — ver sql/010_control_subidas.sql. Desde
+  // sql/019_tipo_licencia.sql, además hace falta licencia DJ: un
+  // usuario Simple no sube temas aunque el admin tenga las subidas de
+  // colaboradores habilitadas en general.
+  const puedeVerBotonSubir = perfil?.rol === "admin" || (permiteSubidaColaboradores && esLicenciaDj(perfil));
+  // "Herramientas DJ" queda fuera del menú para licencia Simple — ver
+  // HerramientasPage.tsx, que además tiene su propio gate por si
+  // alguien entra por URL directa.
+  const navItems = NAV_ITEMS_BASE.filter((item) => item.to !== "/herramientas" || esLicenciaDj(perfil));
   const { trackActual } = usePlayer();
   const navigate = useNavigate();
   const [busqueda, setBusqueda] = useState("");

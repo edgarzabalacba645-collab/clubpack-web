@@ -124,6 +124,20 @@ export function tieneAccesoActivo(perfil: Perfil | null): boolean {
 export const MENSAJE_SIN_ACCESO_ACTIVO =
   "Tu cuenta no tiene una suscripción activa, así que no podés hacer esto todavía.";
 
+/**
+ * Mismo criterio que la función SQL puede_descargar()/puede_subir_temas()
+ * en la parte de licencia (ver sql/019_tipo_licencia.sql): admin cuenta
+ * como DJ siempre; un suscriptor normal necesita tipo_licencia = "dj".
+ * Un usuario Simple (solo escucha) da false acá aunque tenga suscripción
+ * activa — eso lo sigue cubriendo tieneAccesoActivo() por separado.
+ */
+export function esLicenciaDj(perfil: Perfil | null): boolean {
+  return !!perfil && (perfil.rol === "admin" || perfil.tipo_licencia === "dj");
+}
+
+export const MENSAJE_SOLO_LICENCIA_DJ =
+  "Esto es solo para licencia DJ. Tu cuenta es licencia Simple (solo escucha).";
+
 function traducirError(mensaje: string): string {
   const m = mensaje.toLowerCase();
   if (m.includes("invalid login credentials")) return "Email o contraseña incorrectos.";
