@@ -175,15 +175,16 @@ export default function LoginPage() {
           </h1>
 
           <p className="max-w-[480px] text-lg leading-[1.55] text-white/80 m-0">
-            Subí tus versiones, bajá las de tus amigos. Un catálogo privado de
-            remixes y edits hechos acá, sin vueltas.
+            Escuchá y descargá un catálogo privado de remixes y edits hechos
+            acá. Si además hacés tus propias versiones, subilas y
+            compartilas con el grupo.
           </p>
 
           <div className="flex flex-col gap-[18px] mt-2">
             <Feature
               icon={<IconCatalogo />}
               title="Catálogo colaborativo"
-              subtitle="Cada DJ sube sus propias versiones — todo el grupo accede a todo."
+              subtitle="Los DJs suben sus propias versiones — todo el grupo accede a todo."
               clara
             />
             <Feature
