@@ -26,15 +26,49 @@ async function manejarError(res: Response): Promise<never> {
   throw new ApiError(res.status, detalle);
 }
 
-async function apiFetchJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+// Cuántos reintentos le quedan a este pedido si `fetch` directamente no
+// consigue respuesta (no es un 4xx/5xx — eso ya es un Response, y ese
+// camino no reintenta, ver más abajo). Solo para GET: son pedidos de
+// lectura, repetirlos no tiene efecto secundario. Para un POST/PUT/DELETE
+// (subir un tema, crear una suscripción, etc.) NO conviene reintentar
+// solo — si la primera vez sí llegó a procesarse en el backend pero la
+// respuesta se perdió en el camino, reintentar duplicaría la acción.
+function intentosIniciales(init: RequestInit): number {
+  const metodo = (init.method ?? "GET").toUpperCase();
+  return metodo === "GET" ? 2 : 0;
+}
+
+async function apiFetchJson<T>(path: string, init: RequestInit = {}, intentosRestantes?: number): Promise<T> {
+  if (intentosRestantes === undefined) intentosRestantes = intentosIniciales(init);
+
   const token = await accessToken();
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      ...(init.headers ?? {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        ...(init.headers ?? {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (e) {
+    // Acá cae *solo* una falla de red real (no una respuesta HTTP de
+    // error): el caso de lejos más común en este proyecto es el backend
+    // (Render, plan gratis) recién despertándose — se duerme a los 15 min
+    // sin tráfico y tarda 50+ segundos en volver a arrancar (ver
+    // usarDespertarBackend en App.tsx, que ya adelanta ese despertar al
+    // abrir la app, pero no siempre alcanza a terminar antes de que el
+    // usuario toque algo). Antes esto mostraba al toque "no se pudo
+    // conectar con el servidor" — con un par de reintentos con espera,
+    // la mayoría de las veces el backend ya terminó de levantar durante
+    // esos segundos y la acción sigue de largo sin que el usuario note
+    // nada raro.
+    if (intentosRestantes > 0) {
+      await new Promise((r) => setTimeout(r, 3500));
+      return apiFetchJson<T>(path, init, intentosRestantes - 1);
+    }
+    throw e;
+  }
   if (!res.ok) await manejarError(res);
   return res.json() as Promise<T>;
 }

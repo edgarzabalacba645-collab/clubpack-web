@@ -49,8 +49,19 @@ export function mensajeErrorAmigable(error: unknown): string {
     texto = error;
   }
 
+  // Antes decía "revisá tu conexión", pero en este proyecto la causa de
+  // lejos más común NO es la conexión del usuario: es el backend (Render,
+  // plan gratis) que se durmió por falta de tráfico y todavía está
+  // arrancando (ver el comentario grande en apiFetchJson, lib/api.ts, que
+  // ya reintenta solo unos segundos antes de llegar a mostrar esto). Si
+  // después de esos reintentos sigue sin responder, lo más probable es
+  // que recién esté terminando de levantar — decirle al usuario que
+  // revise SU conexión cuando el problema es nuestro servidor generaba
+  // confusión.
   const esDeRed = /failed to fetch|networkerror|load failed|network request failed/i.test(texto);
-  if (esDeRed) return "No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.";
+  if (esDeRed) {
+    return "No se pudo conectar con el servidor — puede estar reactivándose tras un rato sin uso. Probá de nuevo en unos segundos.";
+  }
 
   // Postgres/RLS cruda ("new row violates row-level security policy for
   // table...") no dice nada para alguien que no sabe qué es RLS. Red de
