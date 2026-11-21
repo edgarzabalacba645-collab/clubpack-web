@@ -134,9 +134,14 @@ export default function LoginPage() {
     <div className="min-h-screen w-full bg-cream text-ink font-sans">
       {/* Header */}
       <div className="max-w-[1240px] mx-auto px-6 pt-8 flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-baseline gap-0.5 font-display font-extrabold text-[22px] tracking-[-0.5px] leading-none">
-          <span>CLUB</span>
-          <span>PACK</span>
+        <div className="flex items-center gap-2.5">
+          <span className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+            <img src="/icons/icon-192.png" alt="" className="w-full h-full object-cover" />
+          </span>
+          <div className="flex items-baseline gap-0.5 font-display font-extrabold text-[22px] tracking-[-0.5px] leading-none">
+            <span>CLUB</span>
+            <span>PACK</span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-[13px] text-muted font-medium">
