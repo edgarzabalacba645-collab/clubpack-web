@@ -83,11 +83,17 @@
   body,
   #root {
     min-height: 100%;
-    /* Si algo adentro (ej. la barra del reproductor, el carrusel de
-       "Recién subidos") llega a medir más ancho que la pantalla en
-       celular, que se recorte acá en vez de generar scroll horizontal
-       de toda la página — eso es lo que hacía que el conjunto completo
-       se viera "grande" y desplazado en vez de encajar justo. */
+  }
+
+  /* Si algo adentro (ej. la barra del reproductor, el carrusel de
+     "Recién subidos") llega a medir más ancho que la pantalla en
+     celular, que se recorte acá en vez de generar scroll horizontal
+     de toda la página. IMPORTANTE: esto va SOLO en html, nunca en
+     body ni en #root — ponerlo en un contenedor intermedio convierte
+     a ESE div en "scroll container" para el navegador, y eso rompe el
+     position:sticky de cualquier cosa adentro (el header y el sidebar
+     de PC dejan de quedarse fijos y se desplazan con toda la página). */
+  html {
     overflow-x: hidden;
   }
 
