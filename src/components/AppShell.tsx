@@ -221,6 +221,27 @@ function IconPauseMini() {
   );
 }
 
+/* ⏮ / ⏭ — mismo gesto que los botones de "anterior"/"siguiente" de la
+   pantalla de bloqueo y los auriculares (ver avanzarSiguiente/
+   retrocederAnterior en lib/player.tsx), ahora también en la barra. */
+function IconSiguienteMini() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M6 4 L16 12 L6 20 Z" />
+      <rect x="17" y="4" width="2.3" height="16" />
+    </svg>
+  );
+}
+
+function IconAnteriorMini() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="4.7" y="4" width="2.3" height="16" />
+      <path d="M18 4 L8 12 L18 20 Z" />
+    </svg>
+  );
+}
+
 /* Mismo ícono de "Bajar" que usa la columna Acciones del catálogo (ver
    CatalogoPage) — se repite acá así el botón de descarga de la barra del
    reproductor es visualmente el mismo gesto. */
@@ -274,8 +295,18 @@ function IconRepetir() {
  * hay un track activo.
  */
 function BarraReproductor() {
-  const { trackActual, estado, error, modoContinuo, toggleModoContinuo, contenedorRef, togglePlay, cerrar } =
-    usePlayer();
+  const {
+    trackActual,
+    estado,
+    error,
+    modoContinuo,
+    toggleModoContinuo,
+    contenedorRef,
+    togglePlay,
+    siguiente,
+    anterior,
+    cerrar,
+  } = usePlayer();
   const { perfil } = useAuth();
   const [descargando, setDescargando] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
@@ -311,6 +342,16 @@ function BarraReproductor() {
       <div className="flex items-center gap-3 sm:gap-4">
         <button
           type="button"
+          onClick={anterior}
+          aria-label="Tema anterior"
+          title="Anterior"
+          className="hidden sm:flex shrink-0 w-7 h-7 rounded-full items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
+        >
+          <IconAnteriorMini />
+        </button>
+
+        <button
+          type="button"
           onClick={togglePlay}
           aria-label={estado === "sonando" ? "Pausar" : "Reproducir"}
           className="shrink-0 w-9 h-9 rounded-full bg-ink text-cream flex items-center justify-center appearance-none border-none cursor-pointer"
@@ -322,6 +363,16 @@ function BarraReproductor() {
           ) : (
             <IconPlayMini />
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={siguiente}
+          aria-label="Tema siguiente"
+          title="Siguiente"
+          className="hidden sm:flex shrink-0 w-7 h-7 rounded-full items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
+        >
+          <IconSiguienteMini />
         </button>
 
         <div className="hidden sm:block w-44 shrink-0 min-w-0">

@@ -385,10 +385,16 @@ export default function PlaylistsPage() {
                 <ul className="flex flex-col gap-1 m-0 pl-0 list-none text-sm">
                   {tracks.map((t) => (
                     <li key={t.id} className="flex items-center justify-between gap-3 text-body">
-                      <span className="truncate">
-                        {t.titulo}
-                        {t.remixer ? ` · ${t.remixer}` : ""}
-                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate">{t.titulo}</div>
+                        {(t.remixer || t.artista_original) && (
+                          <div className="text-xs text-muted truncate">
+                            {t.remixer ? `Remix: ${t.remixer}` : ""}
+                            {t.remixer && t.artista_original ? " · " : ""}
+                            {t.artista_original ? `Original: ${t.artista_original}` : ""}
+                          </div>
+                        )}
+                      </div>
                       <span className="text-xs text-muted shrink-0">{formatearBpm(t.bpm)} bpm</span>
                     </li>
                   ))}

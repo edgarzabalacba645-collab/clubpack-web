@@ -96,6 +96,15 @@ interface PlayerContextValue {
   contenedorRef: (el: HTMLDivElement | null) => void;
   reproducir: (track: TrackReproduccion, opciones?: ReproducirOpciones) => void;
   togglePlay: () => void;
+  /** Pasar al siguiente/anterior tema de la cola activa (misma cola que
+   * usa la reproducción continua y los botones de la pantalla de
+   * bloqueo/auriculares — ver avanzarSiguiente/retrocederAnterior más
+   * abajo) — para los botones ⏮ ⏭ de la barra del reproductor. Si no hay
+   * siguiente/anterior en la cola, no hacen nada (siguiente() es la
+   * excepción: igual que el control de la pantalla de bloqueo, si no hay
+   * más temas después corta la reproducción). */
+  siguiente: () => void;
+  anterior: () => void;
   cerrar: () => void;
 }
 
@@ -634,6 +643,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [reanudarConCebado]);
 
+  const siguiente = useCallback(() => {
+    const actualId = trackActualIdRef.current;
+    if (actualId) void avanzarSiguiente(actualId);
+  }, [avanzarSiguiente]);
+
+  const anterior = useCallback(() => {
+    const actualId = trackActualIdRef.current;
+    if (actualId) void retrocederAnterior(actualId);
+  }, [retrocederAnterior]);
+
   const cerrar = useCallback(() => {
     setTrackActual(null);
   }, []);
@@ -653,6 +672,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         contenedorRef,
         reproducir,
         togglePlay,
+        siguiente,
+        anterior,
         cerrar,
       }}
     >
