@@ -153,6 +153,19 @@ function IconClose() {
   );
 }
 
+/* Ícono de "Salir" (logout) — en celular el botón del header pasa a
+   ser solo este ícono (ver "Salir" en AppShell) porque con el texto
+   completo el header no entra en pantallas angostas y terminaba
+   cortado contra el borde derecho. */
+function IconSalir() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+      <path d="M16 16l4-4-4-4M20 12H9" />
+    </svg>
+  );
+}
+
 function IconPlayMini() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -647,7 +660,7 @@ export default function AppShell() {
     <div className="min-h-screen bg-cream text-ink font-sans">
       {/* Header fijo arriba, ancho completo */}
       <header className="sticky top-0 z-30 bg-card border-b border-border-soft">
-        <div className="px-4 sm:px-6 h-16 flex items-center gap-3 sm:gap-5">
+        <div className="px-3 sm:px-6 h-16 flex items-center gap-2 sm:gap-5">
           <button
             type="button"
             onClick={() => setSidebarAbierto((v) => !v)}
@@ -709,9 +722,11 @@ export default function AppShell() {
             <button
               type="button"
               onClick={() => void signOut()}
-              className="text-xs font-semibold px-3 py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer"
+              aria-label="Salir"
+              className="shrink-0 w-9 h-9 sm:w-auto sm:h-auto flex items-center justify-center gap-1.5 text-xs font-semibold sm:px-3 sm:py-2 rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer"
             >
-              Salir
+              <IconSalir />
+              <span className="hidden sm:inline">Salir</span>
             </button>
           </div>
         </div>
