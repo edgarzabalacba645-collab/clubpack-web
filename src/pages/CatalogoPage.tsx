@@ -867,17 +867,21 @@ export default function CatalogoPage() {
         />
         <div className="relative max-w-xl">
           <h1 className="font-display font-extrabold text-[clamp(1.6rem,3.5vw,2.4rem)] leading-[1.08] tracking-[-0.5px] m-0 text-ink dark:text-white">
-            {/* "Colaborativo" solo tiene sentido para quien podría subir —
-                licencia Simple no sube nada, así que no corresponde
-                prometerle colaboración (ver sql/019_tipo_licencia.sql). */}
-            {permiteSubidaColaboradores && esLicenciaDj(perfil)
-              ? "El catálogo colaborativo de música para DJs"
-              : "El catálogo de música para DJs"}
+            {/* Título y bajada cambian según la licencia (ver
+                sql/019_tipo_licencia.sql): a DJ se le vende el tamaño del
+                catálogo y que es cosa de todos; a Simple, que es simple —
+                nada de "colaborativo" ni cantidad de tracks, que supone
+                que podría aportar. */}
+            {esLicenciaDj(perfil)
+              ? totalCatalogo === null
+                ? "Cargando…"
+                : `${totalCatalogo} track${totalCatalogo === 1 ? "" : "s"} listos para sonar`
+              : "La música que nos gusta, en un solo lugar"}
           </h1>
           <p className="mt-3 text-ink/75 dark:text-white/75 text-sm sm:text-base m-0">
-            {totalCatalogo === null
-              ? "Cargando…"
-              : `Descubrí, escuchá y descargá los ${totalCatalogo} track${totalCatalogo === 1 ? "" : "s"} que compartió el grupo.`}
+            {esLicenciaDj(perfil)
+              ? "El catálogo que armamos entre todos. Escuchá, elegí y descargá."
+              : "Recorré y dale play."}
           </p>
           <button
             type="button"
@@ -1394,16 +1398,19 @@ export default function CatalogoPage() {
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    onClick={() => descargarIndividual(t)}
-                    disabled={descargando === t.id}
-                    aria-label={`Bajar ${t.titulo}`}
-                    title="Bajar"
-                    className="shrink-0 p-2 flex items-center justify-center rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-50"
-                  >
-                    {descargando === t.id ? <span className="text-xs px-0.5">…</span> : <IconoBajar />}
-                  </button>
+                  {/* Licencia Simple no descarga (sql/019_tipo_licencia.sql). */}
+                  {esLicenciaDj(perfil) && (
+                    <button
+                      type="button"
+                      onClick={() => descargarIndividual(t)}
+                      disabled={descargando === t.id}
+                      aria-label={`Bajar ${t.titulo}`}
+                      title="Bajar"
+                      className="shrink-0 p-2 flex items-center justify-center rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-50"
+                    >
+                      {descargando === t.id ? <span className="text-xs px-0.5">…</span> : <IconoBajar />}
+                    </button>
+                  )}
 
                   {esAdmin && confirmandoBorrarId !== t.id && (
                     <button
@@ -1468,21 +1475,24 @@ export default function CatalogoPage() {
           <span className="text-sm font-semibold whitespace-nowrap">
             {seleccion.size} seleccionados
           </span>
-          <button
-            type="button"
-            onClick={descargarSeleccionZip}
-            disabled={procesandoZip}
-            className="text-sm font-semibold bg-accent text-white px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60 whitespace-nowrap"
-          >
-            {procesandoZip ? (
-              "Descargando…"
-            ) : (
-              <>
-                <span className="sm:hidden">Descargar</span>
-                <span className="hidden sm:inline">Descargar selección</span>
-              </>
-            )}
-          </button>
+          {/* Licencia Simple no descarga (sql/019_tipo_licencia.sql). */}
+          {esLicenciaDj(perfil) && (
+            <button
+              type="button"
+              onClick={descargarSeleccionZip}
+              disabled={procesandoZip}
+              className="text-sm font-semibold bg-accent text-white px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60 whitespace-nowrap"
+            >
+              {procesandoZip ? (
+                "Descargando…"
+              ) : (
+                <>
+                  <span className="sm:hidden">Descargar</span>
+                  <span className="hidden sm:inline">Descargar selección</span>
+                </>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void abrirFormPlaylist()}

@@ -40,12 +40,17 @@ export default function ListaTracks({
   extra,
   titulo,
   vacio = "No hay temas para mostrar.",
+  puedeDescargar = true,
 }: {
   tracks: TrackResumen[];
   acciones: AccionesFila;
   extra?: (track: TrackResumen, indice: number) => ReactNode;
   titulo?: ReactNode;
   vacio?: string;
+  /** Licencia Simple no descarga (sql/019_tipo_licencia.sql) — en false,
+   * el botón de bajar ni se dibuja (no solo se deshabilita). Default true
+   * para no romper a nadie que todavía no pasa este prop. */
+  puedeDescargar?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -109,16 +114,18 @@ export default function ListaTracks({
                   cantidad={acciones.conteoFavoritos(t.id)}
                   onClick={() => acciones.onToggleFavorito(t.id)}
                 />
-                <button
-                  type="button"
-                  onClick={() => acciones.onDescargar(t)}
-                  disabled={acciones.descargandoId === t.id}
-                  aria-label={`Bajar ${t.titulo}`}
-                  title="Bajar"
-                  className="shrink-0 p-2 flex items-center justify-center rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-50"
-                >
-                  {acciones.descargandoId === t.id ? <span className="text-xs px-0.5">…</span> : <IconoBajar />}
-                </button>
+                {puedeDescargar && (
+                  <button
+                    type="button"
+                    onClick={() => acciones.onDescargar(t)}
+                    disabled={acciones.descargandoId === t.id}
+                    aria-label={`Bajar ${t.titulo}`}
+                    title="Bajar"
+                    className="shrink-0 p-2 flex items-center justify-center rounded-lg border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-50"
+                  >
+                    {acciones.descargandoId === t.id ? <span className="text-xs px-0.5">…</span> : <IconoBajar />}
+                  </button>
+                )}
               </div>
             </div>
           );

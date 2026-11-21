@@ -276,6 +276,7 @@ function IconRepetir() {
 function BarraReproductor() {
   const { trackActual, estado, error, modoContinuo, toggleModoContinuo, contenedorRef, togglePlay, cerrar } =
     usePlayer();
+  const { perfil } = useAuth();
   const [descargando, setDescargando] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
 
@@ -336,16 +337,19 @@ function BarraReproductor() {
           </span>
         )}
 
-        <button
-          type="button"
-          onClick={descargarActual}
-          disabled={descargando}
-          aria-label={`Bajar ${trackActual.titulo}`}
-          title="Bajar"
-          className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink disabled:opacity-50"
-        >
-          {descargando ? <span className="text-xs">…</span> : <IconDescargar />}
-        </button>
+        {/* Licencia Simple no descarga (sql/019_tipo_licencia.sql). */}
+        {esLicenciaDj(perfil) && (
+          <button
+            type="button"
+            onClick={descargarActual}
+            disabled={descargando}
+            aria-label={`Bajar ${trackActual.titulo}`}
+            title="Bajar"
+            className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink disabled:opacity-50"
+          >
+            {descargando ? <span className="text-xs">…</span> : <IconDescargar />}
+          </button>
+        )}
 
         <button
           type="button"
@@ -469,10 +473,11 @@ export default function AppShell() {
   // usuario Simple no sube temas aunque el admin tenga las subidas de
   // colaboradores habilitadas en general.
   const puedeVerBotonSubir = perfil?.rol === "admin" || (permiteSubidaColaboradores && esLicenciaDj(perfil));
-  // "Herramientas DJ" queda fuera del menú para licencia Simple — ver
-  // HerramientasPage.tsx, que además tiene su propio gate por si
-  // alguien entra por URL directa.
-  const navItems = NAV_ITEMS_BASE.filter((item) => item.to !== "/herramientas" || esLicenciaDj(perfil));
+  // "Herramientas DJ" y "Descargas" quedan fuera del menú para licencia
+  // Simple — ver HerramientasPage.tsx y DescargasPage.tsx, que además
+  // tienen su propio gate por si alguien entra por URL directa.
+  const RUTAS_SOLO_DJ = ["/herramientas", "/descargas"];
+  const navItems = NAV_ITEMS_BASE.filter((item) => !RUTAS_SOLO_DJ.includes(item.to) || esLicenciaDj(perfil));
   const { trackActual } = usePlayer();
   const navigate = useNavigate();
   const [busqueda, setBusqueda] = useState("");

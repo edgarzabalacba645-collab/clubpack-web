@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { useAuth } from "../lib/auth";
+import { useAuth, esLicenciaDj } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { formatearFecha, mensajeErrorAmigable, rotuloEstadoSuscripcion } from "../lib/format";
 import type { PerfilUpdate } from "../lib/types";
@@ -188,30 +188,34 @@ export default function MiCuentaPage() {
         Ver detalles de pago / suscripción →
       </Link>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-display font-bold text-lg m-0">Tracks que subiste</h2>
-        <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
-          {cargandoTracks && <EstadoVacio texto="Cargando…" />}
-          {!cargandoTracks && errorTracks && <EstadoVacio texto={errorTracks} esError />}
-          {!cargandoTracks && !errorTracks && misTracks.length === 0 && (
-            <EstadoVacio texto="Todavía no subiste ningún track." />
-          )}
-          {!cargandoTracks &&
-            !errorTracks &&
-            misTracks.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center justify-between gap-4 px-5 py-3 border-b border-border-soft last:border-b-0 text-sm"
-              >
-                <div className="min-w-0">
-                  <div className="font-semibold truncate">{t.titulo}</div>
-                  {t.remixer && <div className="text-xs text-muted truncate">{t.remixer}</div>}
+      {/* Licencia Simple no sube temas (sql/019_tipo_licencia.sql) — esta
+          sección no le aporta nada, directamente no se dibuja. */}
+      {esLicenciaDj(perfil) && (
+        <section className="flex flex-col gap-3">
+          <h2 className="font-display font-bold text-lg m-0">Tracks que subiste</h2>
+          <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
+            {cargandoTracks && <EstadoVacio texto="Cargando…" />}
+            {!cargandoTracks && errorTracks && <EstadoVacio texto={errorTracks} esError />}
+            {!cargandoTracks && !errorTracks && misTracks.length === 0 && (
+              <EstadoVacio texto="Todavía no subiste ningún track." />
+            )}
+            {!cargandoTracks &&
+              !errorTracks &&
+              misTracks.map((t) => (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between gap-4 px-5 py-3 border-b border-border-soft last:border-b-0 text-sm"
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate">{t.titulo}</div>
+                    {t.remixer && <div className="text-xs text-muted truncate">{t.remixer}</div>}
+                  </div>
+                  <div className="text-xs text-muted shrink-0">{formatearFecha(t.fecha_subida)}</div>
                 </div>
-                <div className="text-xs text-muted shrink-0">{formatearFecha(t.fecha_subida)}</div>
-              </div>
-            ))}
-        </div>
-      </section>
+              ))}
+          </div>
+        </section>
+      )}
 
       <section className="flex flex-col gap-3">
         <h2 className="font-display font-bold text-lg m-0">Tus últimas descargas</h2>

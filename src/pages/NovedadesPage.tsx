@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { mensajeErrorAmigable } from "../lib/format";
 import { rotuloDia, SELECT_TRACK_RESUMEN, type TrackResumen } from "../lib/tracks";
 import { useAccionesLista } from "../lib/escucha";
+import { useAuth, esLicenciaDj } from "../lib/auth";
 import ListaTracks from "../components/ListaTracks";
 import AvisoSuscripcionModal from "../components/AvisoSuscripcionModal";
 
@@ -25,6 +26,7 @@ export default function NovedadesPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { acciones, escucha } = useAccionesLista(tracks);
+  const { perfil } = useAuth();
 
   useEffect(() => {
     (async () => {
@@ -118,6 +120,7 @@ export default function NovedadesPage() {
             }
             tracks={lista}
             acciones={acciones}
+            puedeDescargar={esLicenciaDj(perfil)}
           />
         ))}
 

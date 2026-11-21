@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { formatearFechaHora, mensajeErrorAmigable } from "../lib/format";
 import { rotuloDia, SELECT_TRACK_RESUMEN, type TrackResumen } from "../lib/tracks";
 import { useAccionesLista } from "../lib/escucha";
+import { useAuth, esLicenciaDj } from "../lib/auth";
 import ListaTracks from "../components/ListaTracks";
 import AvisoSuscripcionModal from "../components/AvisoSuscripcionModal";
 
@@ -18,6 +19,7 @@ interface FilaDescarga {
    propias), agrupado por día. Cada fila se puede volver a escuchar o
    bajar de nuevo. */
 export default function DescargasPage() {
+  const { perfil } = useAuth();
   const [filas, setFilas] = useState<FilaDescarga[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +69,23 @@ export default function DescargasPage() {
     }
     return [...porDia.entries()];
   }, [filas]);
+
+  // Licencia Simple no descarga, nunca (sql/019_tipo_licencia.sql) —
+  // AppShell ya le esconde "Descargas" del menú, esto es el cinturón de
+  // seguridad para quien entre igual por URL directa.
+  if (perfil && !esLicenciaDj(perfil)) {
+    return (
+      <div className="flex flex-col items-start gap-3 py-10 max-w-md">
+        <h1 className="font-display font-extrabold text-2xl tracking-[-0.5px] m-0">
+          Esto es para licencia DJ
+        </h1>
+        <p className="text-body text-base leading-relaxed m-0">
+          Tu cuenta es licencia Simple (solo escucha), así que no tenés descargas. Si querés
+          pasarte a licencia DJ, consultá con un admin del grupo.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">

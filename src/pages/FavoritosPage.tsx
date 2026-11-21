@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { mensajeErrorAmigable } from "../lib/format";
 import { SELECT_TRACK_RESUMEN, type TrackResumen } from "../lib/tracks";
 import { useAccionesLista } from "../lib/escucha";
+import { useAuth, esLicenciaDj } from "../lib/auth";
 import ListaTracks from "../components/ListaTracks";
 import AvisoSuscripcionModal from "../components/AvisoSuscripcionModal";
 
@@ -17,6 +18,7 @@ export default function FavoritosPage() {
   const [cargandoTracks, setCargandoTracks] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { acciones, escucha, favoritos } = useAccionesLista(tracks);
+  const { perfil } = useAuth();
   const cargando = !favoritos.cargado || cargandoTracks;
 
   // Ids con 1+ corazón según las métricas ya cargadas, ordenados de mayor
@@ -85,6 +87,7 @@ export default function FavoritosPage() {
           acciones={acciones}
           extra={(_t, i) => <span className="font-bold text-muted w-6 inline-block text-right">#{i + 1}</span>}
           vacio="Todavía nadie marcó un favorito. ¡Sé el primero: tocá el ♥ de un tema!"
+          puedeDescargar={esLicenciaDj(perfil)}
         />
       )}
 
