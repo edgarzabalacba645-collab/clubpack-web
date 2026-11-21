@@ -334,7 +334,7 @@ function BarraReproductor() {
           onClick={anterior}
           aria-label="Tema anterior"
           title="Anterior"
-          className="hidden sm:flex shrink-0 w-7 h-7 rounded-full items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
+          className="flex shrink-0 w-7 h-7 rounded-full items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
         >
           <IconAnteriorMini />
         </button>
@@ -359,7 +359,7 @@ function BarraReproductor() {
           onClick={siguiente}
           aria-label="Tema siguiente"
           title="Siguiente"
-          className="hidden sm:flex shrink-0 w-7 h-7 rounded-full items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
+          className="flex shrink-0 w-7 h-7 rounded-full items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
         >
           <IconSiguienteMini />
         </button>
@@ -661,9 +661,9 @@ export default function AppShell() {
             <span className="w-8 h-8 shrink-0 flex items-center justify-center">
               <img src="/logo-mark.png" alt="" className="w-full h-full object-contain" />
             </span>
-            <span className="hidden sm:flex flex-col leading-none">
+            <span className="flex flex-col leading-none">
               <span className="font-display font-extrabold text-[17px] tracking-[-0.3px]">PLAYLIST</span>
-              <span className="text-[11px] text-muted font-medium mt-0.5">Compartí. Mezclá. Disfrutá.</span>
+              <span className="hidden sm:block text-[11px] text-muted font-medium mt-0.5">Compartí. Mezclá. Disfrutá.</span>
             </span>
           </NavLink>
 
