@@ -328,7 +328,7 @@ function BarraReproductor() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border-soft px-4 sm:px-6 py-2 flex flex-col gap-1">
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
         <button
           type="button"
           onClick={anterior}
@@ -417,7 +417,7 @@ function BarraReproductor() {
           <IconCola />
           {aContinuacion.length > 0 && (
             <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full bg-accent text-white text-[9px] font-bold leading-[15px] text-center">
-              {aContinuacion.length}
+              {aContinuacion.length > 9 ? "9+" : aContinuacion.length}
             </span>
           )}
         </button>
@@ -735,7 +735,7 @@ export default function AppShell() {
             el botón hamburguesa del header. No existe en PC (lg:hidden):
             ahí el sidebar de abajo hace ese trabajo de otra forma. */}
         <aside
-          className={`fixed lg:hidden top-16 left-0 z-20 w-64 h-[calc(100vh-4rem)] bg-card border-r border-border-soft flex flex-col gap-1 p-4 overflow-y-auto transition-transform duration-200 ${
+          className={`fixed lg:hidden top-16 left-0 z-20 w-64 h-[calc(100dvh-4rem)] bg-card border-r border-border-soft flex flex-col gap-1 p-4 overflow-y-auto transition-transform duration-200 ${
             trackActual ? "pb-20" : ""
           } ${sidebarAbierto ? "translate-x-0" : "-translate-x-full"}`}
         >
@@ -802,7 +802,7 @@ export default function AppShell() {
         <aside
           onMouseEnter={() => setSidebarEscritorioAbierto(true)}
           onMouseLeave={() => setSidebarEscritorioAbierto(false)}
-          className={`hidden lg:block shrink-0 sticky top-16 h-[calc(100vh-4rem)] bg-card border-r border-border-soft overflow-hidden transition-[width] duration-200 ${
+          className={`hidden lg:block shrink-0 sticky top-16 h-[calc(100dvh-4rem)] bg-card border-r border-border-soft overflow-hidden transition-[width] duration-200 ${
             sidebarEscritorioAbierto ? "w-64" : "w-3"
           }`}
         >

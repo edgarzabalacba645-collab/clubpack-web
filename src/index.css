@@ -83,6 +83,12 @@
   body,
   #root {
     min-height: 100%;
+    /* Si algo adentro (ej. la barra del reproductor, el carrusel de
+       "Recién subidos") llega a medir más ancho que la pantalla en
+       celular, que se recorte acá en vez de generar scroll horizontal
+       de toda la página — eso es lo que hacía que el conjunto completo
+       se viera "grande" y desplazado en vez de encajar justo. */
+    overflow-x: hidden;
   }
 
   body {
