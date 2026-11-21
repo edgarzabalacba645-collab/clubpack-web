@@ -1,6 +1,6 @@
 {
-  "name": "ClubPack",
-  "short_name": "ClubPack",
+  "name": "PLAYLIST",
+  "short_name": "PLAYLIST",
   "description": "Catálogo colaborativo de remixes hechos en Argentina — solo para DJs invitados.",
   "start_url": "/catalogo",
   "scope": "/",

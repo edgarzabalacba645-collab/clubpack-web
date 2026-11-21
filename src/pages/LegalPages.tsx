@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 /*
  * Páginas del pie: Términos y Condiciones, Política de Privacidad y
  * Contacto. Los textos son un BORRADOR escrito a medida de cómo funciona
- * ClubPack hoy (catálogo privado por invitación, suscripción mensual,
+ * PLAYLIST hoy (catálogo privado por invitación, suscripción mensual,
  * datos en Supabase, audio en Cloudflare R2, pagos por Mercado Pago) —
  * el admin los revisa y ajusta lo que haga falta antes de darlos por
  * definitivos. Fecha de última actualización: cambiarla al editar.
@@ -29,7 +29,7 @@ export function TerminosPage() {
   return (
     <Legal titulo="Términos y Condiciones">
       <p>
-        ClubPack es un catálogo privado de remixes, edits y versiones hechas por DJs, pensado para
+        PLAYLIST es un catálogo privado de remixes, edits y versiones hechas por DJs, pensado para
         compartir música de trabajo entre colegas invitados. Al crear una cuenta y usar la
         plataforma aceptás estas condiciones.
       </p>
@@ -48,7 +48,7 @@ export function TerminosPage() {
       <h2>3. Contenido y uso de la música</h2>
       <ul>
         <li>Los temas son subidos por los propios miembros, que declaran tener derecho a compartirlos dentro del grupo (versiones, remixes y edits de su autoría, o material que están autorizados a difundir).</li>
-        <li>El material descargado es para uso personal del DJ en sus presentaciones. No está permitido revenderlo, redistribuirlo fuera de ClubPack ni publicarlo en otras plataformas.</li>
+        <li>El material descargado es para uso personal del DJ en sus presentaciones. No está permitido revenderlo, redistribuirlo fuera de PLAYLIST ni publicarlo en otras plataformas.</li>
         <li>Si sos titular de derechos sobre un contenido y considerás que no debería estar acá, escribinos (ver Contacto) y lo revisamos a la brevedad.</li>
         <li>El administrador puede retirar cualquier contenido sin previo aviso.</li>
       </ul>
@@ -59,7 +59,7 @@ export function TerminosPage() {
       </ul>
       <h2>5. Disponibilidad</h2>
       <p>
-        ClubPack es un proyecto de un grupo de DJs, no un servicio comercial con garantía de
+        PLAYLIST es un proyecto de un grupo de DJs, no un servicio comercial con garantía de
         disponibilidad. Hacemos lo posible por mantenerlo andando, pero puede haber
         interrupciones, mantenimiento o cambios de funciones sin previo aviso.
       </p>
@@ -79,14 +79,14 @@ export function PrivacidadPage() {
   return (
     <Legal titulo="Política de Privacidad">
       <p>
-        Esta política explica qué datos guarda ClubPack, para qué, y qué podés hacer con ellos.
+        Esta política explica qué datos guarda PLAYLIST, para qué, y qué podés hacer con ellos.
         La idea es simple: guardamos lo mínimo para que la plataforma funcione y no vendemos ni
         compartimos tus datos con terceros con fines publicitarios.
       </p>
       <h2>1. Qué datos guardamos</h2>
       <ul>
         <li><strong>Cuenta:</strong> email, nombre de DJ y contraseña (almacenada de forma cifrada por nuestro proveedor de autenticación; nosotros nunca la vemos).</li>
-        <li><strong>Suscripción y pagos:</strong> estado de tu suscripción y el registro de pagos (fecha, monto, medio). Los datos de tu tarjeta los procesa Mercado Pago; ClubPack no los recibe ni almacena.</li>
+        <li><strong>Suscripción y pagos:</strong> estado de tu suscripción y el registro de pagos (fecha, monto, medio). Los datos de tu tarjeta los procesa Mercado Pago; PLAYLIST no los recibe ni almacena.</li>
         <li><strong>Actividad en la plataforma:</strong> qué temas subiste, descargaste, escuchaste y marcaste como favoritos, con fecha. Se usa para el ranking, el Top 50, los contadores que ves en el catálogo y para que el administrador pueda dar soporte y detectar usos indebidos.</li>
         <li><strong>Chat:</strong> los mensajes y audios que compartís en Comunidad, visibles para todos los miembros.</li>
         <li><strong>Datos técnicos mínimos:</strong> la sesión iniciada y algunas preferencias (modo claro/oscuro, novedades ya vistas) se guardan en tu propio navegador.</li>
@@ -124,7 +124,7 @@ export function ContactoPage() {
   return (
     <Legal titulo="Contacto">
       <p>
-        ClubPack lo administra un grupo chico de DJs, así que la forma más rápida de llegar es
+        PLAYLIST lo administra un grupo chico de DJs, así que la forma más rápida de llegar es
         por adentro de la plataforma:
       </p>
       <ul>

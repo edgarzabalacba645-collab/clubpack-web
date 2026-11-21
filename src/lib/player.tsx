@@ -106,6 +106,24 @@ interface PlayerContextValue {
   siguiente: () => void;
   anterior: () => void;
   cerrar: () => void;
+  /** Copia de solo lectura de la cola activa, para dibujar el panel
+   * "A continuación" (ver BarraReproductor) — colaRef sigue siendo la
+   * fuente de verdad que usan avanzarSiguiente/retrocederAnterior (no se
+   * tocó nada de eso), esto es solo para que la UI se entere de cambios. */
+  cola: TrackCola[];
+  /** Suma temas al final de la cola activa sin interrumpir lo que suena
+   * (botón "Agregar a la cola" del menú contextual). */
+  agregarACola: (tracks: TrackCola[]) => void;
+  /** Mezcla el orden de lo que sigue en la cola (todo lo que viene
+   * DESPUÉS del tema actual) — el tema que está sonando no se toca. */
+  mezclarCola: () => void;
+  /** Vacía lo que sigue en la cola, dejando sonando (si hay) el tema
+   * actual nada más — la reproducción continua simplemente corta al
+   * terminarlo, como si esa fuera toda la cola. */
+  vaciarCola: () => void;
+  /** Saca un tema puntual de lo que sigue en la cola (no se puede sacar
+   * el que está sonando ahora mismo). */
+  quitarDeCola: (id: string) => void;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -132,10 +150,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [modoContinuo, setModoContinuo] = useState(false);
   const wsRef = useRef<WaveSurfer | null>(null);
   const contenedorElRef = useRef<HTMLDivElement | null>(null);
-  // Cola + resolver de URL: quedan en refs (no state) porque cambiarlos
-  // nunca debería disparar un re-render por sí solo, solo importan en el
-  // momento de avanzar al siguiente tema.
+  // Cola + resolver de URL: colaRef es la fuente de verdad que usan
+  // avanzarSiguiente/retrocederAnterior/la precarga (nunca debería disparar
+  // un re-render por sí solo, solo importa en el momento de avanzar).
+  // colaVisible es una COPIA en state, que solo existe para que el panel
+  // "A continuación" (ver BarraReproductor) se entere de cambios y se
+  // vuelva a dibujar — se actualiza a mano, junto con colaRef, en
+  // setCola() más abajo. Nunca se lee colaVisible para decidir qué sigue
+  // sonando, solo para mostrarlo en pantalla.
   const colaRef = useRef<TrackCola[]>([]);
+  const [colaVisible, setColaVisible] = useState<TrackCola[]>([]);
+  const setCola = useCallback((nueva: TrackCola[]) => {
+    colaRef.current = nueva;
+    setColaVisible(nueva);
+  }, []);
   const resolverUrlRef = useRef<((id: string) => Promise<ResolucionTrack>) | null>(null);
   const modoContinuoRef = useRef(modoContinuo);
   modoContinuoRef.current = modoContinuo;
@@ -190,8 +218,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!t) return;
     navigator.mediaSession.metadata = new MediaMetadata({
       title: t.titulo,
-      artist: t.remixer ?? t.artista_original ?? "ClubPack",
-      album: "ClubPack",
+      artist: t.remixer ?? t.artista_original ?? "PLAYLIST",
+      album: "PLAYLIST",
     });
   }, []);
 
@@ -560,8 +588,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
     navigator.mediaSession.metadata = new MediaMetadata({
       title: trackActual.titulo,
-      artist: trackActual.remixer ?? trackActual.artista_original ?? "ClubPack",
-      album: "ClubPack",
+      artist: trackActual.remixer ?? trackActual.artista_original ?? "PLAYLIST",
+      album: "PLAYLIST",
     });
   }, [trackActual]);
 
@@ -616,7 +644,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reproducir = useCallback((track: TrackReproduccion, opciones?: ReproducirOpciones) => {
-    if (opciones?.cola) colaRef.current = opciones.cola;
+    if (opciones?.cola) setCola(opciones.cola);
     if (opciones?.resolverUrl) resolverUrlRef.current = opciones.resolverUrl;
     setTrackActual((actual) => {
       if (actual?.id === track.id) {
@@ -633,7 +661,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       return track;
     });
-  }, [reanudarConCebado]);
+  }, [reanudarConCebado, setCola]);
 
   const togglePlay = useCallback(() => {
     if (wsRef.current?.isPlaying()) {
@@ -661,6 +689,57 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setModoContinuo((v) => !v);
   }, []);
 
+  // Suma al final, sin duplicar lo que ya estuviera más adelante en la
+  // cola (evita que "Agregar a la cola" tocado dos veces en el mismo tema
+  // lo deje repetido) — sí permite re-agregar algo que ya pasó, por si se
+  // lo quiere escuchar de nuevo más adelante.
+  const agregarACola = useCallback(
+    (tracks: TrackCola[]) => {
+      const actual = colaRef.current;
+      const actualId = trackActualIdRef.current;
+      const idxActual = actualId ? actual.findIndex((t) => t.id === actualId) : -1;
+      const yaDespues = new Set(actual.slice(idxActual + 1).map((t) => t.id));
+      const nuevos = tracks.filter((t) => !yaDespues.has(t.id));
+      if (nuevos.length === 0) return;
+      setCola([...actual, ...nuevos]);
+    },
+    [setCola],
+  );
+
+  // Fisher-Yates, pero solo sobre la parte de la cola que todavía no
+  // sonó — lo que ya pasó y el tema actual quedan donde estaban, así
+  // mezclar no interrumpe ni "rebobina" lo que se está escuchando.
+  const mezclarCola = useCallback(() => {
+    const actual = colaRef.current;
+    const actualId = trackActualIdRef.current;
+    const idxActual = actualId ? actual.findIndex((t) => t.id === actualId) : -1;
+    const antes = actual.slice(0, idxActual + 1);
+    const resto = actual.slice(idxActual + 1);
+    for (let i = resto.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [resto[i], resto[j]] = [resto[j], resto[i]];
+    }
+    setCola([...antes, ...resto]);
+  }, [setCola]);
+
+  // Deja sonando (si hay) el tema actual y corta ahí toda la cola — la
+  // reproducción continua ya no tiene a dónde avanzar, así que termina
+  // sola al acabar ese tema, en vez de seguir con lo que venía después.
+  const vaciarCola = useCallback(() => {
+    const actual = trackActualRef.current;
+    setCola(actual ? [{ id: actual.id, titulo: actual.titulo, artista_original: actual.artista_original, remixer: actual.remixer, duracion_seg: actual.duracion_seg }] : []);
+  }, [setCola]);
+
+  // No se puede sacar el tema que está sonando ahora mismo (no tendría
+  // sentido: "sacar de la cola" es para lo que todavía no sonó).
+  const quitarDeCola = useCallback(
+    (id: string) => {
+      if (id === trackActualIdRef.current) return;
+      setCola(colaRef.current.filter((t) => t.id !== id));
+    },
+    [setCola],
+  );
+
   return (
     <PlayerContext.Provider
       value={{
@@ -675,6 +754,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         siguiente,
         anterior,
         cerrar,
+        cola: colaVisible,
+        agregarACola,
+        mezclarCola,
+        vaciarCola,
+        quitarDeCola,
       }}
     >
       {children}

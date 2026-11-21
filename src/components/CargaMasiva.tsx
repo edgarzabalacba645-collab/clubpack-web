@@ -389,7 +389,7 @@ function FilaMasivaCard({
                   onChange={() => onCambiar({ usarCaratulaOriginal: false })}
                   className="w-4 h-4 accent-accent mt-0.5"
                 />
-                <span>Usar la portada de ClubPack (por si la original es de otro servicio y no queda bien)</span>
+                <span>Usar la portada de PLAYLIST (por si la original es de otro servicio y no queda bien)</span>
               </label>
             </div>
           </div>

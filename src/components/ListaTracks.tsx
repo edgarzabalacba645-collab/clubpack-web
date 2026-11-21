@@ -3,6 +3,7 @@ import { formatearBpm, formatearDuracion } from "../lib/format";
 import type { TrackResumen } from "../lib/tracks";
 import BotonCorazon from "./BotonCorazon";
 import BotonReproducir from "./BotonReproducir";
+import MenuContextualTrack from "./MenuContextualTrack";
 import Portada from "./Portada";
 
 function IconoBajar() {
@@ -126,6 +127,7 @@ export default function ListaTracks({
                     {acciones.descargandoId === t.id ? <span className="text-xs px-0.5">…</span> : <IconoBajar />}
                   </button>
                 )}
+                <MenuContextualTrack track={t} />
               </div>
             </div>
           );

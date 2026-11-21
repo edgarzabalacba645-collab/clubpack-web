@@ -1743,7 +1743,7 @@ function SeccionCloudflare() {
             , tocá <strong>Create Token → Create Custom Token</strong>.
           </li>
           <li>
-            Le ponés un nombre (ej. "ClubPack - solo lectura") y en Permisos elegís{" "}
+            Le ponés un nombre (ej. "PLAYLIST - solo lectura") y en Permisos elegís{" "}
             <strong>Account → Account Analytics → Read</strong> — nada más, no necesita poder
             escribir ni borrar nada.
           </li>
@@ -1915,7 +1915,7 @@ function SeccionRender() {
       )}
 
       <p className="text-xs text-muted-2 m-0">
-        Este número es de Render, no de ClubPack — el plan gratis (Hobby) incluye 5 GB de ancho de
+        Este número es de Render, no de PLAYLIST — el plan gratis (Hobby) incluye 5 GB de ancho de
         banda de salida por mes, compartido entre todos los servicios de tu cuenta de Render; al
         superarlo, Render empieza a cobrar. Se actualiza cada pocos minutos.
       </p>

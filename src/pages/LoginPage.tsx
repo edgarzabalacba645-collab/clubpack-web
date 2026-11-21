@@ -139,8 +139,7 @@ export default function LoginPage() {
             <img src="/logo-mark.png" alt="" className="w-full h-full object-contain" />
           </span>
           <div className="flex items-baseline gap-0.5 font-display font-extrabold text-[22px] tracking-[-0.5px] leading-none">
-            <span>CLUB</span>
-            <span>PACK</span>
+            <span>PLAYLIST</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -311,7 +310,7 @@ export default function LoginPage() {
       {/* Footer */}
       <div className="border-t border-border-soft mt-6">
         <div className="max-w-[1240px] mx-auto px-6 py-6 flex flex-wrap gap-2 justify-between text-[13px] text-muted-2">
-          <div>ClubPack — hecho por DJs, para DJs.</div>
+          <div>PLAYLIST — hecho por DJs, para DJs.</div>
           <div>Catálogo cerrado · uso privado del grupo</div>
         </div>
       </div>

@@ -5,7 +5,7 @@ function PantallaCargando() {
   return (
     <div className="min-h-screen bg-cream flex items-center justify-center">
       <div className="font-display font-extrabold text-lg tracking-[-0.5px] text-ink">
-        CLUBPACK
+        PLAYLIST
       </div>
     </div>
   );

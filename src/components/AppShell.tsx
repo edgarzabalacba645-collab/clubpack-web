@@ -5,8 +5,10 @@ import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { usePlayer } from "../lib/player";
 import { formatearDuracion } from "../lib/format";
 import { abrirDescargaDirecta, ApiError, obtenerUrlDescarga } from "../lib/api";
+import { useGuardarPlaylist, ModalGuardarPlaylist } from "../lib/guardarPlaylist";
 import BotonTema from "./BotonTema";
 import CampanaNovedades from "./CampanaNovedades";
+import MenuContextualTrack from "./MenuContextualTrack";
 
 /** Lo que AppShell le pasa a sus páginas hijas via useOutletContext. */
 export interface AppShellContext {
@@ -234,6 +236,34 @@ function IconRepetir() {
   );
 }
 
+/* Ícono de "A continuación" (lista con una nota musical) — abre el panel
+   de cola. */
+function IconCola() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 6h11M4 12h11M4 18h6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="18.5" cy="17" r="2.2" fill="currentColor" />
+      <path d="M20.5 17V7l-2 .6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconMezclar() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 6h3.5l9 12H20M4 18h3.5l2.4-3.2M13.6 9.2 16.5 6H20"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M17.5 4 20 6l-2.5 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17.5 14 20 16l-2.5 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /*
  * Barra fija con el reproductor global (ver src/lib/player.tsx) — vive
  * acá, adentro de AppShell, que no se desmonta al navegar entre
@@ -253,10 +283,22 @@ function BarraReproductor() {
     siguiente,
     anterior,
     cerrar,
+    cola,
+    mezclarCola,
+    vaciarCola,
+    quitarDeCola,
   } = usePlayer();
   const { perfil } = useAuth();
   const [descargando, setDescargando] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
+  const [colaAbierta, setColaAbierta] = useState(false);
+  const guardarPlaylist = useGuardarPlaylist();
+
+  // Lo que "sigue" en la cola es todo lo que viene DESPUÉS del tema
+  // actual — lo anterior ya sonó, no tiene sentido mostrarlo acá (para
+  // volver a un tema ya pasado está el botón "Anterior").
+  const idxActual = trackActual ? cola.findIndex((t) => t.id === trackActual.id) : -1;
+  const aContinuacion = idxActual >= 0 ? cola.slice(idxActual + 1) : [];
 
   // Bajar el tema que está sonando ahora mismo, sin tener que volver al
   // catálogo a buscar su fila — pensado para cuando uno reconoce el tema
@@ -364,6 +406,24 @@ function BarraReproductor() {
 
         <button
           type="button"
+          onClick={() => setColaAbierta((v) => !v)}
+          aria-pressed={colaAbierta}
+          aria-label="A continuación"
+          title="A continuación"
+          className={`relative shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none border-none cursor-pointer transition-colors ${
+            colaAbierta ? "bg-accent/15 text-accent" : "bg-transparent text-muted hover:text-ink"
+          }`}
+        >
+          <IconCola />
+          {aContinuacion.length > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full bg-accent text-white text-[9px] font-bold leading-[15px] text-center">
+              {aContinuacion.length}
+            </span>
+          )}
+        </button>
+
+        <button
+          type="button"
           onClick={cerrar}
           aria-label="Cerrar reproductor"
           className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
@@ -371,6 +431,90 @@ function BarraReproductor() {
           <IconClose />
         </button>
       </div>
+
+      {/* Panel "A continuación" — se abre/cierra con el botón de arriba,
+          siempre arriba de la barra fija (bottom-full) para no tapar los
+          controles. Mismo <ModalGuardarPlaylist> que usa el menú
+          contextual de cada fila (ver MenuContextualTrack): acá se abre
+          con TODA la cola completa (lo que ya sonó + el actual + lo que
+          sigue), no solo "lo que falta" — tiene más sentido guardar la
+          sesión entera como playlist. */}
+      {colaAbierta && (
+        <div className="absolute bottom-full left-0 right-0 max-h-[60vh] flex flex-col bg-card border-t border-x border-border-soft rounded-t-2xl shadow-lg overflow-hidden">
+          <div className="shrink-0 flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-b border-border-soft">
+            <h3 className="font-display font-bold text-sm m-0">A continuación</h3>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={mezclarCola}
+                disabled={aContinuacion.length < 2}
+                title="Mezclar lo que sigue"
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-full border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+              >
+                <IconMezclar />
+                <span className="hidden sm:inline">Shuffle Play</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => void guardarPlaylist.abrir(cola.map((t) => t.id), "Mi cola")}
+                disabled={cola.length === 0}
+                title="Guardar cola como playlist"
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-full border border-border hover:border-ink transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-40"
+              >
+                <span className="sm:hidden">Playlist</span>
+                <span className="hidden sm:inline">Guardar como playlist</span>
+              </button>
+              <button
+                type="button"
+                onClick={vaciarCola}
+                disabled={aContinuacion.length === 0}
+                title="Vaciar cola"
+                className="text-xs font-semibold px-2.5 py-1.5 rounded-full border border-border hover:border-accent hover:text-accent transition-colors appearance-none bg-transparent cursor-pointer disabled:opacity-40"
+              >
+                Vaciar
+              </button>
+              <button
+                type="button"
+                onClick={() => setColaAbierta(false)}
+                aria-label="Cerrar panel de cola"
+                className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center appearance-none bg-transparent border-none cursor-pointer text-muted hover:text-ink"
+              >
+                <IconClose />
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-y-auto">
+            {aContinuacion.length === 0 && (
+              <p className="text-sm text-muted text-center py-8 px-4 m-0">
+                No hay nada más en cola — cuando termine este tema, se corta acá.
+              </p>
+            )}
+            {aContinuacion.map((t) => {
+              const subtituloFila = [
+                t.artista_original ? `Original: ${t.artista_original}` : null,
+                t.remixer ? `Remix: ${t.remixer}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <div
+                  key={t.id}
+                  className="flex items-center gap-3 px-4 sm:px-6 py-2.5 border-b border-border-soft last:border-b-0"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold truncate">{t.titulo}</div>
+                    {subtituloFila && <div className="text-xs text-muted truncate">{subtituloFila}</div>}
+                  </div>
+                  <MenuContextualTrack track={t} enCola onQuitarDeCola={() => quitarDeCola(t.id)} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <ModalGuardarPlaylist estado={guardarPlaylist} />
 
       {/* Antes esto tenía "hidden lg:block" — en el celular, que es
           justo donde más pasan estos errores (bloqueo de pantalla,
@@ -405,7 +549,7 @@ function PieSidebar({ perfil, onNavegar }: { perfil: ReturnType<typeof useAuth>[
   if (!sinAcceso) {
     return (
       <div className="rounded-xl bg-cream p-3.5 text-xs text-muted mt-2">
-        ClubPack — hecho por DJs, para DJs. Catálogo cerrado, uso privado del grupo.
+        PLAYLIST — hecho por DJs, para DJs. Catálogo cerrado, uso privado del grupo.
       </div>
     );
   }
@@ -447,7 +591,7 @@ function PiePagina() {
         </NavLink>
       </nav>
       <span className="text-xs text-muted-2">
-        <strong className="text-muted">ClubPack</strong> — La música nos une
+        <strong className="text-muted">PLAYLIST</strong> — La música nos une
       </span>
     </footer>
   );
@@ -518,7 +662,7 @@ export default function AppShell() {
               <img src="/logo-mark.png" alt="" className="w-full h-full object-contain" />
             </span>
             <span className="hidden sm:flex flex-col leading-none">
-              <span className="font-display font-extrabold text-[17px] tracking-[-0.3px]">ClubPack</span>
+              <span className="font-display font-extrabold text-[17px] tracking-[-0.3px]">PLAYLIST</span>
               <span className="text-[11px] text-muted font-medium mt-0.5">Compartí. Mezclá. Disfrutá.</span>
             </span>
           </NavLink>

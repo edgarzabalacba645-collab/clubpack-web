@@ -26,6 +26,7 @@ import { usePlayer } from "../lib/player";
 import { useFavoritos } from "../lib/favoritos";
 import Portada from "../components/Portada";
 import BotonCorazon from "../components/BotonCorazon";
+import MenuContextualTrack from "../components/MenuContextualTrack";
 import AvisoSuscripcionModal from "../components/AvisoSuscripcionModal";
 
 interface TrackFila {
@@ -702,7 +703,7 @@ export default function CatalogoPage() {
   }
 
   // Saca la portada propia (p.ej. si quedó pegada la de otro tema por
-  // error) y deja al track con la genérica de ClubPack, sin tener que
+  // error) y deja al track con la genérica de PLAYLIST, sin tener que
   // pasar por el explorador de archivos a elegir una imagen nueva.
   async function usarPortadaGenerica() {
     if (!editando) return;
@@ -1444,6 +1445,7 @@ export default function CatalogoPage() {
                       </button>
                     </div>
                   )}
+                  <MenuContextualTrack track={t} />
                 </div>
               </div>
             </div>
@@ -1621,11 +1623,11 @@ export default function CatalogoPage() {
                       disabled={quitandoPortada || subiendoPortada}
                       className="text-xs font-semibold underline text-muted appearance-none bg-transparent border-none cursor-pointer disabled:opacity-60"
                     >
-                      {quitandoPortada ? "Quitando…" : "Usar la genérica de ClubPack"}
+                      {quitandoPortada ? "Quitando…" : "Usar la genérica de PLAYLIST"}
                     </button>
                   )}
                 </div>
-                <span className="text-xs text-muted">Si no subís una, queda la genérica de ClubPack.</span>
+                <span className="text-xs text-muted">Si no subís una, queda la genérica de PLAYLIST.</span>
               </div>
             </div>
 
