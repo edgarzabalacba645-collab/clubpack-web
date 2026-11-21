@@ -1,19 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Marca de PLAYLIST: auriculares simplificados, trazo grueso y sin
-       brillo/blur (la versión anterior era un dibujo neón con líneas finas
-       que a 16-32px —favicon, taskbar— quedaba un borrón sin forma
-       reconocible). Colores: el mismo degradé violeta->rosa que ya usa la
-       marca de acento de la app en modo oscuro (--color-accent-violet /
-       --color-accent-pink en index.css), no uno inventado de cero. -->
-  <defs>
-    <linearGradient id="mark" x1="130" y1="140" x2="382" y2="400" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#c084fc"/>
-      <stop offset="1" stop-color="#f472b6"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="100" fill="#1b1c38"/>
-  <path d="M 140.6 239.1 A 120 120 0 0 1 371.4 239.1"
-        fill="none" stroke="url(#mark)" stroke-width="44" stroke-linecap="round"/>
-  <rect x="108.6" y="218.7" width="64" height="170" rx="32.0" fill="url(#mark)"/>
-  <rect x="339.4" y="218.7" width="64" height="170" rx="32.0" fill="url(#mark)"/>
+  <!-- Favicon / ícono de instalación: fondo blanco, el nombre "PLAYLIST"
+       y una línea roja corta abajo a modo de subrayado — a pedido
+       explícito de Edgar (el dibujo de los auriculares queda SOLO en el
+       logo del header dentro de la app, logo-mark.png; este ícono es
+       aparte). Tipografía Inter (la misma --font-sans de la app). -->
+  <rect width="512" height="512" rx="100" fill="#ffffff"/>
+  <text x="256" y="261.5" text-anchor="middle"
+        font-family="Inter" font-weight="800" font-size="70"
+        letter-spacing="1" fill="#12152c">PLAYLIST</text>
+  <rect x="186" y="283.5" width="140" height="12" rx="6" fill="#dc2626"/>
 </svg>
