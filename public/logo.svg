@@ -11,7 +11,7 @@
       <stop offset="1" stop-color="#f472b6"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" fill="#13142b"/>
+  <rect width="512" height="512" rx="100" fill="#1b1c38"/>
   <path d="M 140.6 239.1 A 120 120 0 0 1 371.4 239.1"
         fill="none" stroke="url(#mark)" stroke-width="44" stroke-linecap="round"/>
   <rect x="108.6" y="218.7" width="64" height="170" rx="32.0" fill="url(#mark)"/>
