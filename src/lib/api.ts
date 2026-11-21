@@ -94,7 +94,7 @@ export interface DuplicadoPendiente {
   id: string;
   track_id_a: string;
   track_id_b: string;
-  tipo: "fingerprint_exacto" | "texto_similar";
+  tipo: "fingerprint_exacto" | "fingerprint_similar" | "texto_similar";
   similitud: number | null;
   estado: string;
   fecha_deteccion: string;

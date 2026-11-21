@@ -408,7 +408,7 @@ function FilaMasivaCard({
                   {d.titulo}
                   {d.remixer ? ` · ${d.remixer}` : ""}
                 </span>
-                <span className="text-xs text-muted shrink-0">{Math.round(d.similitud * 100)}% similar</span>
+                <span className="text-xs text-muted shrink-0">{Math.round(d.similitud)}% similar</span>
               </li>
             ))}
           </ul>

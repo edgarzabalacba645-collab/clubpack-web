@@ -7,7 +7,7 @@ export type EstadoSuscripcion = "activo" | "vencido" | "cancelado" | "pendiente"
 // descarga + carga (como era todo antes de esta columna).
 export type TipoLicencia = "simple" | "dj";
 export type EstadoTrack = "activo" | "duplicado_sospechoso" | "eliminado";
-export type TipoDuplicado = "fingerprint_exacto" | "texto_similar";
+export type TipoDuplicado = "fingerprint_exacto" | "fingerprint_similar" | "texto_similar";
 export type EstadoDuplicado = "pendiente" | "descartado" | "resuelto";
 
 export interface Perfil {

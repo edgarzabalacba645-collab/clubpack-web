@@ -998,7 +998,11 @@ function DuplicadosTab() {
       {pendientes.map((d) => (
         <div key={d.id} className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-4">
           <p className="text-sm font-semibold m-0">
-            {d.tipo === "fingerprint_exacto" ? "🎵 Audio idéntico" : `📝 Texto ${d.similitud}% parecido`}
+            {d.tipo === "fingerprint_exacto"
+              ? "🎵 Audio idéntico"
+              : d.tipo === "fingerprint_similar"
+                ? `🎵 Audio ${d.similitud}% parecido`
+                : `📝 Texto ${d.similitud}% parecido`}
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
