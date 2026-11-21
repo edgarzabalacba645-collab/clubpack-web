@@ -15,6 +15,5 @@
     <path d="M70 230 L70 170 M110 260 L110 120 M150 230 L150 150 M190 260 L190 110 M230 230 L230 160 M270 260 L270 130 M310 230 L310 170 M330 250 L330 150" />
   </g>
   <rect x="0" y="182" width="400" height="6" fill="url(#bar)" />
-  <text x="200" y="150" font-family="'Space Grotesk', Inter, system-ui, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.5" fill="#f2f0e9" text-anchor="middle">CLUB</text>
-  <text x="200" y="240" font-family="'Space Grotesk', Inter, system-ui, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.5" fill="#f2f0e9" text-anchor="middle">PACK</text>
+  <text x="200" y="200" font-family="'Space Grotesk', Inter, system-ui, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.5" fill="#f2f0e9" text-anchor="middle">PLAYLIST</text>
 </svg>
