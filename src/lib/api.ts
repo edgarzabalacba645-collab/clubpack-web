@@ -284,6 +284,25 @@ export function calcularPeaksTrack(trackId: string) {
   return apiFetchJson(`/tracks/${trackId}/calcular-peaks`, { method: "POST" });
 }
 
+// ---- Admin: backfill de la portada genérica DENTRO del archivo para
+// temas subidos antes de que esa elección también se grabara en el MP3
+// (ver audio.py::fijar_caratula_generica) — antes solo cambiaba lo que
+// mostraba el catálogo web, el archivo real seguía con la carátula
+// vieja. Nunca toca temas con portada propia guardada (portada_url). ----
+
+export interface TrackPendientePortada {
+  id: string;
+  titulo: string;
+}
+
+export function listarPendientesPortadaGenerica() {
+  return apiFetchJson<{ tracks: TrackPendientePortada[] }>("/tracks/admin/pendientes-portada-generica");
+}
+
+export function fijarPortadaGenericaTrack(trackId: string) {
+  return apiFetchJson(`/tracks/${trackId}/fijar-portada-generica`, { method: "POST" });
+}
+
 // ---- Imágenes: portadas de track + herramientas DJ (R2, por eso pasan por la API) ----
 
 const cacheUrlImagen = new Map<string, { url: string; expira: number }>();

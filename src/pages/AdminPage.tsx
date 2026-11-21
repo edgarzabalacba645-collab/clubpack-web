@@ -6,8 +6,10 @@ import {
   borrarTrackAdmin,
   calcularPeaksTrack,
   escanearDuplicados,
+  fijarPortadaGenericaTrack,
   listarDuplicadosPendientes,
   listarPendientesPeaks,
+  listarPendientesPortadaGenerica,
   marcarDuplicado,
   obtenerBalanceCloudflare,
   obtenerBalanceRender,
@@ -17,6 +19,7 @@ import {
   type DuplicadoPendiente,
   type ItemUso,
   type TrackPendientePeaks,
+  type TrackPendientePortada,
 } from "../lib/api";
 import {
   formatearBpm,
@@ -1127,6 +1130,7 @@ function CatalogoCompletoTab() {
     <div className="flex flex-col gap-4">
       <ControlSubidasPanel />
       <PeaksPendientesPanel />
+      <PortadaPendientesPanel />
 
       <div className="flex items-center gap-2">
         <label className="text-xs font-semibold text-body">Subido por</label>
@@ -1388,6 +1392,125 @@ function PeaksPendientesPanel() {
       {!procesando && progreso && (
         <p className="text-sm text-muted m-0">
           Listo: {progreso.hechos - fallidos.length} de {progreso.total} calculados.
+          {fallidos.length > 0 && ` ${fallidos.length} fallaron (${fallidos.map((f) => f.titulo).join(", ")}).`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PortadaPendientesPanel() {
+  const [pendientes, setPendientes] = useState<TrackPendientePortada[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [procesando, setProcesando] = useState(false);
+  const [progreso, setProgreso] = useState<{ hechos: number; total: number } | null>(null);
+  const [fallidos, setFallidos] = useState<TrackPendientePortada[]>([]);
+  const [ultimoErrorDetalle, setUltimoErrorDetalle] = useState<string | null>(null);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    setError(null);
+    try {
+      const { tracks } = await listarPendientesPortadaGenerica();
+      setPendientes(tracks);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function handleFijar() {
+    setProcesando(true);
+    setError(null);
+    setFallidos([]);
+    setUltimoErrorDetalle(null);
+    try {
+      // Mismo motivo que en PeaksPendientesPanel: pide la lista de
+      // pendientes DE NUEVO acá, así si esto se corta a mitad de camino
+      // y se vuelve a apretar el botón, retoma de los que faltan nada
+      // más (nunca reprocesa uno que ya quedó con la genérica grabada).
+      const { tracks: actuales } = await listarPendientesPortadaGenerica();
+      const fallidosAhora: TrackPendientePortada[] = [];
+      let fallosSeguidos = 0;
+      let hechos = 0;
+      const total = actuales.length;
+      for (hechos = 0; hechos < total; hechos++) {
+        const track = actuales[hechos];
+        setProgreso({ hechos, total });
+        if (hechos > 0) await new Promise((r) => setTimeout(r, 500));
+        try {
+          await fijarPortadaGenericaTrack(track.id);
+          fallosSeguidos = 0;
+        } catch (e) {
+          fallidosAhora.push(track);
+          fallosSeguidos++;
+          const detalle = e instanceof ApiError ? e.message : String(e);
+          setUltimoErrorDetalle(`"${track.titulo}": ${detalle}`);
+          console.error(`No se pudo fijar la portada genérica de "${track.titulo}" (${track.id}):`, e);
+          if (fallosSeguidos >= 5) {
+            setError(
+              "Se cortó después de 5 fallos seguidos (puede que el servidor esté reiniciándose) — " +
+                "esperá un poco y volvé a apretar el botón, retoma de donde quedó.",
+            );
+            hechos++;
+            break;
+          }
+        }
+      }
+      setProgreso({ hechos, total });
+      setFallidos(fallidosAhora);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setProcesando(false);
+      await cargar();
+    }
+  }
+
+  if (cargando) return <p className="text-sm text-muted m-0">Revisando temas pendientes de portada…</p>;
+
+  // Ya está todo al día: no vale la pena ocupar lugar en pantalla con un
+  // panel vacío para esto el resto del tiempo.
+  if (!cargando && pendientes.length === 0 && !progreso) return null;
+
+  return (
+    <div className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-3">
+      <div>
+        <p className="font-semibold text-sm m-0">Portada de PLAYLIST grabada en el archivo</p>
+        <p className="text-sm text-muted m-0">
+          Temas subidos con "no mantener carátula original" antes de que esa elección también se
+          grabara en el MP3 — el catálogo ya mostraba la portada genérica, pero el archivo real
+          seguía con la carátula vieja. No toca temas con carátula propia guardada.
+        </p>
+      </div>
+
+      {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
+      {ultimoErrorDetalle && (
+        <p className="text-xs text-muted font-mono m-0 break-words">Último fallo: {ultimoErrorDetalle}</p>
+      )}
+
+      {pendientes.length > 0 && (
+        <button
+          type="button"
+          onClick={handleFijar}
+          disabled={procesando}
+          className="self-start text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
+        >
+          {procesando
+            ? `Grabando… ${progreso?.hechos ?? 0}/${progreso?.total ?? pendientes.length}`
+            : `🖼️ Grabar portada pendiente (${pendientes.length})`}
+        </button>
+      )}
+
+      {!procesando && progreso && (
+        <p className="text-sm text-muted m-0">
+          Listo: {progreso.hechos - fallidos.length} de {progreso.total} grabados.
           {fallidos.length > 0 && ` ${fallidos.length} fallaron (${fallidos.map((f) => f.titulo).join(", ")}).`}
         </p>
       )}
