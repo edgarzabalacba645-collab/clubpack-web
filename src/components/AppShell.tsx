@@ -514,8 +514,8 @@ export default function AppShell() {
           </button>
 
           <NavLink to="/catalogo" className="flex items-center gap-2.5 no-underline text-ink shrink-0">
-            <span className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-              <img src="/icons/icon-192.png" alt="" className="w-full h-full object-cover" />
+            <span className="w-8 h-8 shrink-0 flex items-center justify-center">
+              <img src="/logo-mark.png" alt="" className="w-full h-full object-contain" />
             </span>
             <span className="hidden sm:flex flex-col leading-none">
               <span className="font-display font-extrabold text-[17px] tracking-[-0.3px]">ClubPack</span>

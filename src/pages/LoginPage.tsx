@@ -135,8 +135,8 @@ export default function LoginPage() {
       {/* Header */}
       <div className="max-w-[1240px] mx-auto px-6 pt-8 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2.5">
-          <span className="w-9 h-9 rounded-full overflow-hidden shrink-0">
-            <img src="/icons/icon-192.png" alt="" className="w-full h-full object-cover" />
+          <span className="w-9 h-9 shrink-0 flex items-center justify-center">
+            <img src="/logo-mark.png" alt="" className="w-full h-full object-contain" />
           </span>
           <div className="flex items-baseline gap-0.5 font-display font-extrabold text-[22px] tracking-[-0.5px] leading-none">
             <span>CLUB</span>
