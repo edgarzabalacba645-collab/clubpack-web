@@ -44,21 +44,47 @@ function AppShellConProveedores() {
 /**
  * El backend (Render, plan gratis) se duerme a los 15 min sin tráfico y
  * tarda 50+ segundos en volver a arrancar — eso es lo que se siente como
- * demora al darle play recién abierta la app, porque hoy ese despertar
- * recién arranca cuando el usuario toca play (obtenerUrlDescarga pega
- * contra el backend). Este ping no bloquea nada ni espera respuesta: solo
- * adelanta el despertar al momento en que se abre la app (antes incluso
- * de loguearse), para que la mayor parte de esos 50s ya haya pasado
- * mientras el usuario todavía está eligiendo qué tema poner.
+ * demora al darle play o al subir un tema, porque CUALQUIERA de las dos
+ * cosas pega contra el backend (obtenerUrlDescarga para reproducir,
+ * /tracks/analyze y /tracks/confirm para subir — no hay forma de evitarlo,
+ * ambas necesitan ffmpeg/R2 del lado del servidor).
+ *
+ * Este ping inicial adelanta el despertar al momento en que se abre la
+ * app (antes incluso de loguearse), para que la mayor parte de esos 50s
+ * ya haya pasado mientras el usuario todavía está eligiendo qué hacer.
+ * Pero eso solo cubre el arranque — a pedido de Edgar ("mientras la
+ * plataforma esté abierta no se duerman los procesos, ni análisis ni
+ * reproducción"), además se repite cada 10 minutos mientras la pestaña
+ * siga abierta (por debajo del umbral de 15 min de Render), para que el
+ * backend nunca llegue a dormirse en medio de una sesión activa.
+ *
+ * Si se cierra la pestaña, el intervalo se corta solo (cleanup de abajo)
+ * y el backend puede volver a dormirse — es lo esperado: no tiene
+ * sentido mantenerlo despierto las 24 horas sin que nadie lo esté
+ * usando (el plan gratis de Render tiene un tope de horas por mes, y
+ * quemarlo de más podría dejarlo sin esas horas justo cuando sí hay
+ * gente usando la app).
+ *
+ * Límite real que no depende de la app: si el celular se bloquea o el
+ * navegador manda la pestaña muy al fondo, el sistema operativo puede
+ * pausar este temporizador igual — no hay forma de garantizar el 100%
+ * desde el lado del frontend en ese caso.
  */
 function usarDespertarBackend() {
   useEffect(() => {
     if (!API_BASE_URL) return;
-    fetch(`${API_BASE_URL}/health`).catch(() => {
-      // Sin red, o el backend tardando en arrancar — no es nada que
-      // mostrarle al usuario acá, la próxima acción real ya mostrará su
-      // propio estado de carga si todavía no respondió.
-    });
+
+    const pingear = () => {
+      fetch(`${API_BASE_URL}/health`).catch(() => {
+        // Sin red, o el backend tardando en arrancar — no es nada que
+        // mostrarle al usuario acá, la próxima acción real ya mostrará su
+        // propio estado de carga si todavía no respondió.
+      });
+    };
+
+    pingear();
+    const intervalo = setInterval(pingear, 10 * 60 * 1000);
+    return () => clearInterval(intervalo);
   }, []);
 }
 
