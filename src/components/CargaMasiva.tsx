@@ -401,13 +401,18 @@ function FilaMasivaCard({
           <p className="text-sm font-semibold text-accent m-0">
             Encontramos {fila.duplicados.length} track(s) parecido(s) ya en el catálogo:
           </p>
-          <ul className="flex flex-col gap-1.5 m-0 pl-0 list-none">
+          <ul className="flex flex-col gap-2 m-0 pl-0 list-none">
             {fila.duplicados.map((d) => (
-              <li key={d.id} className="text-sm flex items-center justify-between gap-3">
-                <span>
-                  {d.titulo}
-                  {d.remixer ? ` · ${d.remixer}` : ""}
-                </span>
+              <li key={d.id} className="text-sm flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium">{d.titulo}</span>
+                  {/* Artista, Remixer y Género: a pedido de Edgar, para
+                      dar más certeza de si es o no un duplicado real. */}
+                  <span className="text-xs text-muted">
+                    Artista: {d.artista_original || "—"} · Remixer: {d.remixer || "—"} · Género:{" "}
+                    {d.genero || "—"}
+                  </span>
+                </div>
                 <span className="text-xs text-muted shrink-0">{Math.round(d.similitud)}% similar</span>
               </li>
             ))}

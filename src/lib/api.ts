@@ -79,6 +79,11 @@ export interface DuplicadoCandidato {
   id: string;
   titulo: string;
   remixer: string | null;
+  // A pedido de Edgar: Artista y Género asignado al lado de Remixer,
+  // para juzgar mejor si un candidato es un duplicado real (ver
+  // app/duplicados.py del backend).
+  artista_original: string | null;
+  genero: string | null;
   similitud: number;
 }
 
