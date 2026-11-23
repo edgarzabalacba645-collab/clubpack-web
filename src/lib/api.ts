@@ -84,6 +84,7 @@ export interface DuplicadoCandidato {
   // app/duplicados.py del backend).
   artista_original: string | null;
   genero: string | null;
+  duracion_seg: number | null;
   similitud: number;
 }
 

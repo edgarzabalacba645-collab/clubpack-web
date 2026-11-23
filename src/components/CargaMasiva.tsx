@@ -406,11 +406,12 @@ function FilaMasivaCard({
               <li key={d.id} className="text-sm flex items-start justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
                   <span className="font-medium">{d.titulo}</span>
-                  {/* Artista, Remixer y Género: a pedido de Edgar, para
-                      dar más certeza de si es o no un duplicado real. */}
+                  {/* Artista, Remixer, Género y Duración: a pedido de
+                      Edgar, para dar más certeza de si es o no un
+                      duplicado real. */}
                   <span className="text-xs text-muted">
                     Artista: {d.artista_original || "—"} · Remixer: {d.remixer || "—"} · Género:{" "}
-                    {d.genero || "—"}
+                    {d.genero || "—"} · Duración: {d.duracion_seg != null ? formatearDuracion(d.duracion_seg) : "—"}
                   </span>
                 </div>
                 <span className="text-xs text-muted shrink-0">{Math.round(d.similitud)}% similar</span>
