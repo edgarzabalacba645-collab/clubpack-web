@@ -334,67 +334,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Reanudar un tema PAUSADO llamado desde un control EXTERNO (notificación
-  // de la pantalla bloqueada, auriculares, autoestéreo, etc.) — a diferencia
-  // del botón de play adentro de la app (reanudarConCebado, arriba), Edgar
-  // confirmó que ahí el "cebado" con mute NO alcanza: el navegador reporta
-  // que arrancó (el ícono cambia, mediaSession.playbackState="playing",
-  // hasta "timeupdate" sigue avanzando) pero no sale ningún sonido real,
-  // hasta desbloquear el celular y tocar play de nuevo adentro de la app.
-  // Es un "éxito fantasma" más profundo que el que reanudarConCebado ataja: acá
-  // ni jugando con el volumen hay nada que "destapar", porque el problema no
-  // es perder el primer pedacito de audio sino que el sistema operativo
-  // nunca terminó de engancharle a esta pestaña el audio focus real.
-  //
-  // Pista concreta que SÍ funciona siempre (reportada por Edgar): cambiar de
-  // tema (que recarga el <audio> con una URL nueva) destraba todo y vuelve a
-  // sonar. Esto calza con un bug conocido de Android/Chrome en el manejo del
-  // "audio focus" al reanudar desde la notificación de una pestaña en
-  // segundo plano — ver el revert "Android Media Session: Don't request
-  // AudioFocus when backgrounded" en el propio repo de Chromium (tuvieron
-  // que revertirlo porque rompía justo esto: "users could not resume media
-  // through the media notification"). Es un bug reconocido de la
-  // plataforma, no algo que dependa del código de acá — y no hay forma de
-  // confirmar desde JS si el sonido realmente está saliendo por el parlante
-  // (play() resuelve igual, "timeupdate" avanza igual, esté sonando de
-  // verdad o no).
-  //
-  // La mitigación: ya que no se puede detectar el fantasma, forzar siempre
-  // el mecanismo que sabemos que funciona — recargar el tema actual (con una
-  // URL firmada fresca, por si la vieja venció mientras estaba pausado) y
-  // volver exactamente a la posición donde se había pausado, en vez de
-  // confiar en reanudar tal cual estaba.
-  const reanudarDesdeControlExterno = useCallback(async () => {
-    const ws = wsRef.current;
-    const t = trackActualRef.current;
-    if (!ws || !t) return;
-    const resolver = resolverUrlRef.current;
-    if (!resolver) {
-      // Sin forma de pedir una URL fresca (no debería pasar en los flujos
-      // normales) — al menos intentar el camino de siempre antes que nada.
-      void reanudarConCebado();
-      return;
-    }
-    const posicion = ws.getCurrentTime();
-    try {
-      setEstado("cargando");
-      const resuelto = await resolver(t.id);
-      const channelData = resuelto.peaks ? [resuelto.peaks] : undefined;
-      ws.load(resuelto.url, channelData, resuelto.duracion_seg ?? t.duracion_seg ?? undefined);
-      // Vuelve a la posición exacta donde se había pausado — si el audio
-      // nuevo todavía no está listo para moverse, wavesurfer guarda esto como
-      // "pendingTime" y lo aplica solo apenas pueda (evento nativo
-      // "canplay"), así que es seguro llamarlo ya mismo. El play() real lo
-      // dispara el handler "ready" de siempre (registrado una sola vez al
-      // crear wavesurfer, ver más arriba) — no hace falta repetirlo acá.
-      ws.setTime(posicion);
-    } catch (e) {
-      const detalle = e instanceof Error ? e.message : String(e);
-      setError(`No se pudo reanudar (${detalle}).`);
-      setEstado("pausado");
-    }
-  }, [reanudarConCebado]);
-
   // Precarga la URL del tema que sigue apenas arranca el actual (no hace
   // falta esperar a que termine) — así ya está lista cuando "finish" la
   // necesita. Si falla (red, token vencido, etc.) no pasa nada: queda
@@ -675,7 +614,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.setActionHandler("play", () => void reanudarDesdeControlExterno());
+    navigator.mediaSession.setActionHandler("play", () => void reanudarConCebado());
     navigator.mediaSession.setActionHandler("pause", () => wsRef.current?.pause());
     navigator.mediaSession.setActionHandler("nexttrack", () => {
       const actualId = trackActualIdRef.current;
@@ -691,7 +630,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler("nexttrack", null);
       navigator.mediaSession.setActionHandler("previoustrack", null);
     };
-  }, [avanzarSiguiente, retrocederAnterior, reanudarDesdeControlExterno]);
+  }, [avanzarSiguiente, retrocederAnterior, reanudarConCebado]);
 
   // Red de seguridad para cuando el provider en sí se desmonta (en la práctica
   // casi nunca, vive en la raíz de la app) — evita dejar un <audio> colgado.
