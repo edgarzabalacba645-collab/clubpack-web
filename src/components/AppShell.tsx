@@ -341,6 +341,17 @@ function BarraReproductor() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-30 bg-card border-t border-border-soft px-4 sm:px-6 py-2 flex flex-col gap-1">
+      {/* Qué está sonando: a pedido de Edgar, una línea siempre visible
+          (antes título/artista/versión solo aparecían en pantallas
+          anchas — "hidden sm:block" — así que en el celular la barra
+          era solo íconos sin forma de saber qué tema era). Ahora es una
+          sola línea arriba de los controles, en cualquier tamaño de
+          pantalla. */}
+      <div className="min-w-0 px-0.5">
+        <div className="text-sm font-semibold truncate leading-tight">{trackActual.titulo}</div>
+        {subtitulo && <div className="text-xs text-muted truncate leading-tight">{subtitulo}</div>}
+      </div>
+
       <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
         <button
           type="button"
@@ -376,11 +387,6 @@ function BarraReproductor() {
         >
           <IconSiguienteMini />
         </button>
-
-        <div className="hidden sm:block w-44 shrink-0 min-w-0">
-          <div className="font-semibold text-sm truncate leading-tight">{trackActual.titulo}</div>
-          {subtitulo && <div className="text-xs text-muted truncate leading-tight">{subtitulo}</div>}
-        </div>
 
         <div ref={contenedorRef} className="flex-1 min-w-0 cursor-pointer" />
 
