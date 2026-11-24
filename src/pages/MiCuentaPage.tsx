@@ -4,6 +4,12 @@ import { useAuth, esLicenciaDj } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { formatearFecha, mensajeErrorAmigable, rotuloEstadoSuscripcion } from "../lib/format";
 import type { PerfilUpdate } from "../lib/types";
+import {
+  activarBiometria,
+  biometriaActivada,
+  biometriaDisponible,
+  desactivarBiometria,
+} from "../lib/biometria";
 
 interface TrackSubido {
   id: string;
@@ -33,6 +39,18 @@ export default function MiCuentaPage() {
   const [misDescargas, setMisDescargas] = useState<DescargaFila[]>([]);
   const [cargandoDescargas, setCargandoDescargas] = useState(true);
   const [errorDescargas, setErrorDescargas] = useState<string | null>(null);
+
+  // null mientras se chequea si este dispositivo soporta biometría.
+  const [biometriaDisp, setBiometriaDisp] = useState<boolean | null>(null);
+  const [biometriaOn, setBiometriaOn] = useState(false);
+  const [cambiandoBiometria, setCambiandoBiometria] = useState(false);
+  const [errorBiometria, setErrorBiometria] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    setBiometriaOn(biometriaActivada(session.user.id));
+    biometriaDisponible().then(setBiometriaDisp);
+  }, [session]);
 
   useEffect(() => {
     if (!session) return;
@@ -76,6 +94,30 @@ export default function MiCuentaPage() {
 
   const estado = perfil?.estado_suscripcion;
   const suscripcionOk = estado === "activo" || perfil?.rol === "admin";
+
+  async function alternarBiometria() {
+    if (!session) return;
+    setErrorBiometria(null);
+    setCambiandoBiometria(true);
+    try {
+      if (biometriaOn) {
+        desactivarBiometria(session.user.id);
+        setBiometriaOn(false);
+      } else {
+        const nombreMostrado = perfil?.nombre_dj || session.user.email || "Usuario PLAYLIST";
+        await activarBiometria(session.user.id, nombreMostrado);
+        setBiometriaOn(true);
+      }
+    } catch {
+      setErrorBiometria(
+        biometriaOn
+          ? "No se pudo desactivar. Probá de nuevo."
+          : "No se pudo activar — cancelaste el pedido de huella/rostro, o este dispositivo no tiene nada configurado.",
+      );
+    } finally {
+      setCambiandoBiometria(false);
+    }
+  }
 
   function empezarEdicionNombre() {
     setNombreDj(perfil?.nombre_dj ?? "");
@@ -187,6 +229,35 @@ export default function MiCuentaPage() {
       >
         Ver detalles de pago / suscripción →
       </Link>
+
+      {/* Bloqueo biométrico: a pedido de Edgar, para que si alguien
+          agarra el celular y abre la app instalada, no pueda entrar sin
+          la huella/rostro del dueño. Es por DISPOSITIVO — hay que
+          activarlo de nuevo en cada celular/navegador donde se use (ver
+          lib/biometria.ts para el detalle de cómo funciona). */}
+      {biometriaDisp !== false && (
+        <div className="bg-card rounded-2xl p-6 flex flex-col gap-2 border border-border-soft">
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold text-ink">Bloqueo con huella/rostro</span>
+              <span className="text-xs text-muted">
+                Pedir huella o rostro al abrir la app en este dispositivo.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={alternarBiometria}
+              disabled={biometriaDisp === null || cambiandoBiometria}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full appearance-none border-none cursor-pointer shrink-0 disabled:opacity-60 ${
+                biometriaOn ? "bg-accent/10 text-accent" : "bg-ink text-cream"
+              }`}
+            >
+              {cambiandoBiometria ? "..." : biometriaOn ? "Desactivar" : "Activar"}
+            </button>
+          </div>
+          {errorBiometria && <p className="text-xs text-accent font-medium m-0">{errorBiometria}</p>}
+        </div>
+      )}
 
       {/* Licencia Simple no sube temas (sql/019_tipo_licencia.sql) — esta
           sección no le aporta nada, directamente no se dibuja. */}
