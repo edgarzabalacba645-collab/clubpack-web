@@ -216,6 +216,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // si va a llegar a sonar, y reanudar después de una pausa tampoco
   // cuenta como escucha nueva). Ver sql/014_actividad_por_usuario.sql.
   const reproduccionRegistradaRef = useRef(false);
+  // Timer para pausar el audio de silencio en loop con demora (ver el
+  // handler nativo "pause" más abajo) — para distinguir una pausa GENUINA
+  // (el usuario pausa de verdad) de la pausa transitoria que pasa sola al
+  // cambiar de tema (ws.load() pausa el <audio> como efecto secundario del
+  // cambio de src, y enseguida vuelve a sonar con el tema nuevo). Si
+  // llega un "play" antes de que venza la demora, se cancela y el
+  // silencio nunca se pausa — eso es lo que protege el cambio de tema.
+  const pausarSilencioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Intento de forzar a Android a repintar la notificación de la pantalla
   // bloqueada (para corregir el ícono de play/pausa que se le queda
@@ -538,6 +546,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // sistema operativo lee para decidir qué ícono mostrar en la
         // notificación de la pantalla de bloqueo.
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
+        // Cancela cualquier pausa-del-silencio pendiente (ver el "pause"
+        // de acá abajo) y reanuda el silencio si ya se había pausado de
+        // verdad (pausa genuina seguida de reanudar).
+        if (pausarSilencioTimeoutRef.current) {
+          clearTimeout(pausarSilencioTimeoutRef.current);
+          pausarSilencioTimeoutRef.current = null;
+        }
+        audioSilencioRef.current?.play().catch(() => {});
         // Repintar metadata además de playbackState — ver el comentario
         // grande de "repintarMetadata" y el del handler "pause" de acá
         // abajo: a este Android/Chrome el playbackState solo no le
@@ -546,7 +562,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // Intento adicional (ver comentario grande en "reasignarControlesMediaSession"):
         // volver a registrar los botones, no solo repintar metadata.
         reasignarControlesMediaSession();
-        anotar(`Evento nativo: play (currentTime=${ws?.getCurrentTime().toFixed(2)})`);
+        anotar(
+          `Evento nativo: play (currentTime=${ws?.getCurrentTime().toFixed(2)}, silencioPausado=${audioSilencioRef.current?.paused})`,
+        );
         setError(null);
         setEstado("sonando");
         // Anotar la escucha para el visor de actividad del admin — una
@@ -592,6 +610,43 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // las dos igual (no hacen daño y podrían ayudar en otros
         // Android), pero el síntoma en sí parece ser una limitación de
         // la plataforma en ese equipo puntual, no arreglable desde acá.
+        //
+        // NUEVA HIPÓTESIS (con el registro técnico de Edgar, que mostró
+        // que el botón de la notificación se queda pegado en "pausa" y ni
+        // siquiera llega a dispararse "play"): el audio de silencio en
+        // loop (ver SILENCIO_DATA_URI, arriba del todo del archivo) sigue
+        // sonando aunque el tema principal esté en pausa — nunca se
+        // pausaba a él. Para Android, eso significa que ESTA pestaña
+        // sigue teniendo audio activo de verdad incluso con el tema
+        // pausado, lo que podría ser justo lo que confunde al ícono de la
+        // notificación (¿para qué mostrar "reanudar" si el sistema
+        // detecta que todavía hay sonido?). Se pausa acá también — el
+        // riesgo que el silencio existía para evitar (Android cortando la
+        // sesión de audio en segundo plano) era específicamente durante
+        // el cambio de "src" de ws.load() entre temas, no durante una
+        // pausa común y corriente (eso sí lo maneja bien cualquier app de
+        // música: una sesión "paused" declarada por Media Session puede
+        // quedarse así el tiempo que haga falta).
+        //
+        // Se pausa con una demora corta (ver pausarSilencioTimeoutRef) y
+        // no de inmediato: esta misma pausa nativa también se dispara
+        // solo-de-paso en CADA cambio de tema (ws.load() pausa el <audio>
+        // como efecto colateral del cambio de src, antes de que el tema
+        // nuevo arranque solo). Si se pausara el silencio en el acto,
+        // quedaría un hueco sin NINGÚN audio sonando justo en esos
+        // cambios de tema — exactamente el escenario que el silencio
+        // existe para evitar. Con la demora, un cambio de tema normal
+        // dispara "play" del tema siguiente mucho antes de que venza y la
+        // cancela — el silencio nunca llega a pausarse ahí. Solo se
+        // pausa de verdad cuando la pausa dura (una pausa genuina).
+        if (pausarSilencioTimeoutRef.current) clearTimeout(pausarSilencioTimeoutRef.current);
+        pausarSilencioTimeoutRef.current = setTimeout(() => {
+          pausarSilencioTimeoutRef.current = null;
+          if (!wsRef.current?.isPlaying()) {
+            audioSilencioRef.current?.pause();
+            anotar("Silencio: pausado (pasaron 500ms sin reanudar)");
+          }
+        }, 500);
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
         repintarMetadata();
         // Intento adicional (ver comentario grande en "reasignarControlesMediaSession"):
@@ -599,7 +654,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // el bug del ícono de la notificación que se queda pegado en
         // "pausa" y no deja tocar "play" nunca.
         reasignarControlesMediaSession();
-        anotar(`Evento nativo: pause (visibility=${document.visibilityState}, modoContinuo=${modoContinuoRef.current})`);
+        anotar(
+          `Evento nativo: pause (visibility=${document.visibilityState}, modoContinuo=${modoContinuoRef.current}, silencioPausado=${audioSilencioRef.current?.paused})`,
+        );
         if (modoContinuoRef.current && document.visibilityState === "hidden") {
           setError("El navegador pausó la reproducción en segundo plano.");
         }
@@ -737,6 +794,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       wsRef.current = null;
       audioSilencioRef.current?.pause();
       audioSilencioRef.current = null;
+      if (pausarSilencioTimeoutRef.current) clearTimeout(pausarSilencioTimeoutRef.current);
     };
   }, []);
 
