@@ -770,12 +770,20 @@ export default function CatalogoPage() {
   }, [tracks, orden, metricasDe]);
 
   const mostrarDescubrimiento = !hayFiltrosActivos && !cargando && tracks.length > 0;
+  // A pedido de Edgar: la tira de portadas ("Recién subidos") ya NO se
+  // esconde al aplicar un filtro — sigue mostrándose, pero con lo que
+  // matchea ese filtro (tracks/destacados ya vienen filtrados en
+  // cualquier caso, filtro o no). "Top géneros" y el título "Catálogo
+  // completo" de la lista de abajo siguen atados a mostrarDescubrimiento
+  // (sin filtros) nomás, porque esos sí dejan de tener sentido una vez
+  // que ya filtraste a mano.
+  const mostrarTiraPortadas = !cargando && tracks.length > 0;
   // "Recién subidos" es ahora un carrusel (ver CarruselHorizontal) en vez
   // de una fila fija, así que puede mostrar bastantes más portadas sin
   // amontonarlas — con el sidebar de PC escondido hay más ancho real
   // disponible de entrada (ver AppShellContext), se suman unas pocas más.
-  // Siempre los más nuevos de verdad (tracks viene por fecha desc), sin
-  // importar el "Ordenar por" de la lista.
+  // Siempre los más nuevos de verdad DENTRO de lo filtrado (tracks viene
+  // por fecha desc), sin importar el "Ordenar por" de la lista.
   const destacados = tracks.slice(0, sidebarEscritorioAbierto ? 14 : 18);
 
   // Top géneros: los 5 con más temas, con su porcentaje sobre el total
@@ -1183,8 +1191,9 @@ export default function CatalogoPage() {
       )}
       {error && <p className="text-sm text-accent font-medium">{error}</p>}
 
-      {/* Recién subidos — los últimos subidos, como tarjetas en un carrusel */}
-      {mostrarDescubrimiento && (
+      {/* Recién subidos — los últimos subidos (dentro de lo filtrado, si
+          hay algún filtro activo), como tarjetas en un carrusel */}
+      {mostrarTiraPortadas && (
         <div className="flex flex-col gap-3.5">
           <div className="flex items-center justify-between">
             <h2 className="font-display font-bold text-lg m-0">Recién subidos</h2>
@@ -1247,8 +1256,12 @@ export default function CatalogoPage() {
           </CarruselHorizontal>
 
           {/* Top géneros — qué pesa más en el catálogo; cada barra filtra
-              por ese género al tocarla. */}
-          {topGeneros.length > 0 && (
+              por ese género al tocarla. A diferencia de la tira de
+              portadas de arriba, esto sí se sigue ocultando con un
+              filtro activo: son estadísticas del catálogo ENTERO sin
+              filtrar (ver topGeneros), no tiene sentido mostrarlas al
+              lado de resultados ya filtrados a mano. */}
+          {mostrarDescubrimiento && topGeneros.length > 0 && (
             <div className="bg-card rounded-2xl border border-border-soft px-5 py-4 flex flex-col gap-2.5">
               <div className="flex items-center justify-between gap-3">
                 <h3 className="font-display font-bold text-sm m-0">Top géneros</h3>
