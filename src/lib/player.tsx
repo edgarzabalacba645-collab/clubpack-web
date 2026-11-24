@@ -383,6 +383,41 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [anotar]);
 
+  // Registra (o vuelve a registrar) los controles de la notificación de la
+  // pantalla bloqueada. Además de llamarse al montar (ver el useEffect de
+  // más abajo), se vuelve a llamar DESDE los eventos nativos play/pause
+  // (ver más abajo, dentro del efecto que crea wavesurfer) — es un
+  // intento de forzar a Chrome/Android a reconstruir el SET de botones de
+  // la notificación (no solo repintar la metadata, que ya se probó y no
+  // alcanzó — ver el comentario grande en el handler nativo de "pause")
+  // para el bug reportado por Edgar de que el botón de la notificación se
+  // queda mostrando "pausa" después de pausar, así que tocarlo de nuevo
+  // vuelve a pausar (ya pausado) en vez de reanudar — nunca llega a
+  // dispararse "play". No es una garantía (puede seguir siendo una
+  // limitación de la plataforma en ese equipo), pero es de bajo riesgo:
+  // no toca nada de la lógica de avance de temas.
+  const reasignarControlesMediaSession = useCallback(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.setActionHandler("play", () => {
+      anotar("Notificación/control externo: PLAY tocado");
+      void reanudarConCebado();
+    });
+    navigator.mediaSession.setActionHandler("pause", () => {
+      anotar("Notificación/control externo: PAUSE tocado");
+      wsRef.current?.pause();
+    });
+    navigator.mediaSession.setActionHandler("nexttrack", () => {
+      anotar("Notificación/control externo: SIGUIENTE tocado");
+      const actualId = trackActualIdRef.current;
+      if (actualId) void avanzarSiguiente(actualId);
+    });
+    navigator.mediaSession.setActionHandler("previoustrack", () => {
+      anotar("Notificación/control externo: ANTERIOR tocado");
+      const actualId = trackActualIdRef.current;
+      if (actualId) void retrocederAnterior(actualId);
+    });
+  }, [anotar, reanudarConCebado, avanzarSiguiente, retrocederAnterior]);
+
   // Precarga la URL del tema que sigue apenas arranca el actual (no hace
   // falta esperar a que termine) — así ya está lista cuando "finish" la
   // necesita. Si falla (red, token vencido, etc.) no pasa nada: queda
@@ -508,6 +543,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // abajo: a este Android/Chrome el playbackState solo no le
         // alcanza para refrescar el ícono de la notificación.
         repintarMetadata();
+        // Intento adicional (ver comentario grande en "reasignarControlesMediaSession"):
+        // volver a registrar los botones, no solo repintar metadata.
+        reasignarControlesMediaSession();
         anotar(`Evento nativo: play (currentTime=${ws?.getCurrentTime().toFixed(2)})`);
         setError(null);
         setEstado("sonando");
@@ -556,6 +594,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // la plataforma en ese equipo puntual, no arreglable desde acá.
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
         repintarMetadata();
+        // Intento adicional (ver comentario grande en "reasignarControlesMediaSession"):
+        // volver a registrar los botones, no solo repintar metadata — para
+        // el bug del ícono de la notificación que se queda pegado en
+        // "pausa" y no deja tocar "play" nunca.
+        reasignarControlesMediaSession();
         anotar(`Evento nativo: pause (visibility=${document.visibilityState}, modoContinuo=${modoContinuoRef.current})`);
         if (modoContinuoRef.current && document.visibilityState === "hidden") {
           setError("El navegador pausó la reproducción en segundo plano.");
@@ -667,32 +710,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [estado, trackActual]);
 
   useEffect(() => {
-    if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.setActionHandler("play", () => {
-      anotar("Notificación/control externo: PLAY tocado");
-      void reanudarConCebado();
-    });
-    navigator.mediaSession.setActionHandler("pause", () => {
-      anotar("Notificación/control externo: PAUSE tocado");
-      wsRef.current?.pause();
-    });
-    navigator.mediaSession.setActionHandler("nexttrack", () => {
-      anotar("Notificación/control externo: SIGUIENTE tocado");
-      const actualId = trackActualIdRef.current;
-      if (actualId) void avanzarSiguiente(actualId);
-    });
-    navigator.mediaSession.setActionHandler("previoustrack", () => {
-      anotar("Notificación/control externo: ANTERIOR tocado");
-      const actualId = trackActualIdRef.current;
-      if (actualId) void retrocederAnterior(actualId);
-    });
+    reasignarControlesMediaSession();
     return () => {
+      if (!("mediaSession" in navigator)) return;
       navigator.mediaSession.setActionHandler("play", null);
       navigator.mediaSession.setActionHandler("pause", null);
       navigator.mediaSession.setActionHandler("nexttrack", null);
       navigator.mediaSession.setActionHandler("previoustrack", null);
     };
-  }, [avanzarSiguiente, retrocederAnterior, reanudarConCebado, anotar]);
+  }, [reasignarControlesMediaSession]);
 
   // Registro técnico temporal: anota cuándo la pestaña pasa a segundo
   // plano/vuelve (pantalla bloqueada, cambio de app) — ayuda a ubicar en
