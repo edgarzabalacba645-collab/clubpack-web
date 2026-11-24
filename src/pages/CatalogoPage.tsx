@@ -193,6 +193,18 @@ export default function CatalogoPage() {
   const [antiguedad, setAntiguedad] = useState<AntiguedadFiltro>("");
   const [orden, setOrden] = useState<OrdenCatalogo>("nuevos");
 
+  // A pedido de Edgar: Buscar/Género/Ordenar por quedan siempre a la
+  // vista (son los que más se usan); BPM/Tonalidad/Duración/Fecha de
+  // subida van atrás de "Más filtros", colapsado por default — así en
+  // el celular no hay que scrollear un paquete largo de filtros antes
+  // de llegar al catálogo. Se abre solo de entrada si alguno de esos
+  // filtros "avanzados" ya viene activo (lazy initializer: solo corre
+  // una vez, al montar), para no esconder un filtro activo sin que se
+  // note.
+  const [mostrarMasFiltros, setMostrarMasFiltros] = useState(
+    () => !!(bpmMin || bpmMax || key || duracion || antiguedad),
+  );
+
   const { metricasDe, esFavorito, toggleFavorito } = useFavoritos();
 
   // "Catálogo completo" se pagina: cada Portada montada pide una URL
@@ -986,152 +998,182 @@ export default function CatalogoPage() {
       {/* Filtros */}
       <div
         id="catalogo-filtros"
-        className="bg-card rounded-2xl p-5 border border-border-soft flex flex-wrap gap-4 items-end scroll-mt-24"
+        className="bg-card rounded-2xl p-5 border border-border-soft flex flex-col gap-4 scroll-mt-24"
       >
-        <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
-          <label htmlFor="busqueda" className="text-xs font-semibold text-body">
-            Buscar
-          </label>
-          <input
-            id="busqueda"
-            type="text"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Título, remixer, artista…"
-            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft focus:outline-2 focus:outline-accent"
-          />
+        {/* Siempre visibles (ver comentario del estado mostrarMasFiltros
+            más arriba): en pantallas angostas, Buscar arriba y
+            Género/Ordenar por abajo repartidos 50/50; a partir de `sm`
+            (celular apaisado/tablet en adelante, y PC) los tres van en
+            una misma fila fija al lado de Buscar. */}
+        <div className="flex flex-col sm:flex-row gap-4 sm:items-end">
+          <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+            <label htmlFor="busqueda" className="text-xs font-semibold text-body">
+              Buscar
+            </label>
+            <input
+              id="busqueda"
+              type="text"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Título, remixer, artista…"
+              className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft focus:outline-2 focus:outline-accent"
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <div className="flex flex-col gap-1.5 flex-1 sm:flex-none sm:w-48">
+              <label htmlFor="genero" className="text-xs font-semibold text-body">
+                Género
+              </label>
+              <select
+                id="genero"
+                value={generoId}
+                onChange={(e) => elegirGenero(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+              >
+                <option value="">Todos</option>
+                {generos.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5 flex-1 sm:flex-none sm:w-48">
+              <label htmlFor="orden" className="text-xs font-semibold text-body">
+                Ordenar por
+              </label>
+              <select
+                id="orden"
+                value={orden}
+                onChange={(e) => {
+                  setOrden(e.target.value as OrdenCatalogo);
+                  setPagina(1);
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+              >
+                {ORDENES.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.texto}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-1.5 min-w-[160px]">
-          <label htmlFor="genero" className="text-xs font-semibold text-body">
-            Género
-          </label>
-          <select
-            id="genero"
-            value={generoId}
-            onChange={(e) => elegirGenero(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
-          >
-            <option value="">Todos</option>
-            {generos.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* BPM, Tonalidad, Duración y Fecha de subida: atrás de "Más
+            filtros" (ver mostrarMasFiltros más arriba). */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-4 -mb-1">
+            <button
+              type="button"
+              onClick={() => setMostrarMasFiltros((v) => !v)}
+              aria-expanded={mostrarMasFiltros}
+              className="text-xs font-semibold text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer p-0 flex items-center gap-1"
+            >
+              {mostrarMasFiltros ? "Menos filtros" : "Más filtros"}
+              <span className={`inline-block transition-transform ${mostrarMasFiltros ? "rotate-180" : ""}`}>
+                ▾
+              </span>
+            </button>
+            {hayFiltrosActivos && (
+              <button
+                type="button"
+                onClick={limpiarFiltros}
+                className="text-xs font-semibold text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer p-0"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
 
-        <div className="flex flex-col gap-1.5 w-24">
-          <label htmlFor="bpmMin" className="text-xs font-semibold text-body">
-            BPM min
-          </label>
-          <input
-            id="bpmMin"
-            type="number"
-            value={bpmMin}
-            onChange={(e) => setBpmMin(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
-          />
-        </div>
+          {mostrarMasFiltros && (
+            <div className="flex flex-wrap gap-4 items-end">
+              <div className="flex flex-col gap-1.5 w-24">
+                <label htmlFor="bpmMin" className="text-xs font-semibold text-body">
+                  BPM min
+                </label>
+                <input
+                  id="bpmMin"
+                  type="number"
+                  value={bpmMin}
+                  onChange={(e) => setBpmMin(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+                />
+              </div>
 
-        <div className="flex flex-col gap-1.5 w-24">
-          <label htmlFor="bpmMax" className="text-xs font-semibold text-body">
-            BPM max
-          </label>
-          <input
-            id="bpmMax"
-            type="number"
-            value={bpmMax}
-            onChange={(e) => setBpmMax(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
-          />
-        </div>
+              <div className="flex flex-col gap-1.5 w-24">
+                <label htmlFor="bpmMax" className="text-xs font-semibold text-body">
+                  BPM max
+                </label>
+                <input
+                  id="bpmMax"
+                  type="number"
+                  value={bpmMax}
+                  onChange={(e) => setBpmMax(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+                />
+              </div>
 
-        <div className="flex flex-col gap-1.5 w-28">
-          <label htmlFor="key" className="text-xs font-semibold text-body">
-            Tonalidad
-          </label>
-          <select
-            id="key"
-            value={key}
-            onChange={(e) => setKey(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
-          >
-            <option value="">Todas</option>
-            {CAMELOT_KEYS.map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
-        </div>
+              <div className="flex flex-col gap-1.5 w-28">
+                <label htmlFor="key" className="text-xs font-semibold text-body">
+                  Tonalidad
+                </label>
+                <select
+                  id="key"
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+                >
+                  <option value="">Todas</option>
+                  {CAMELOT_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        <div className="flex flex-col gap-1.5 min-w-[130px]">
-          <label htmlFor="duracion" className="text-xs font-semibold text-body">
-            Duración
-          </label>
-          <select
-            id="duracion"
-            value={duracion}
-            onChange={(e) => setDuracion(e.target.value as DuracionFiltro)}
-            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
-          >
-            {DURACIONES.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.texto}
-              </option>
-            ))}
-          </select>
-        </div>
+              <div className="flex flex-col gap-1.5 min-w-[130px]">
+                <label htmlFor="duracion" className="text-xs font-semibold text-body">
+                  Duración
+                </label>
+                <select
+                  id="duracion"
+                  value={duracion}
+                  onChange={(e) => setDuracion(e.target.value as DuracionFiltro)}
+                  className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+                >
+                  {DURACIONES.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.texto}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        <div className="flex flex-col gap-1.5 min-w-[140px]">
-          <label htmlFor="antiguedad" className="text-xs font-semibold text-body">
-            Fecha de subida
-          </label>
-          <select
-            id="antiguedad"
-            value={antiguedad}
-            onChange={(e) => setAntiguedad(e.target.value as AntiguedadFiltro)}
-            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
-          >
-            {ANTIGUEDADES.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.texto}
-              </option>
-            ))}
-          </select>
+              <div className="flex flex-col gap-1.5 min-w-[140px]">
+                <label htmlFor="antiguedad" className="text-xs font-semibold text-body">
+                  Fecha de subida
+                </label>
+                <select
+                  id="antiguedad"
+                  value={antiguedad}
+                  onChange={(e) => setAntiguedad(e.target.value as AntiguedadFiltro)}
+                  className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
+                >
+                  {ANTIGUEDADES.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.texto}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
-
-        <div className="flex flex-col gap-1.5 min-w-[150px]">
-          <label htmlFor="orden" className="text-xs font-semibold text-body">
-            Ordenar por
-          </label>
-          <select
-            id="orden"
-            value={orden}
-            onChange={(e) => {
-              setOrden(e.target.value as OrdenCatalogo);
-              setPagina(1);
-            }}
-            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft"
-          >
-            {ORDENES.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.texto}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {hayFiltrosActivos && (
-          <button
-            type="button"
-            onClick={limpiarFiltros}
-            className="text-sm font-semibold text-muted hover:text-ink appearance-none bg-transparent border-none cursor-pointer px-2 py-2"
-          >
-            Limpiar filtros
-          </button>
-        )}
       </div>
 
       {avisoAccion && (
