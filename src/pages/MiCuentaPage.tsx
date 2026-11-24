@@ -9,6 +9,7 @@ import {
   biometriaActivada,
   biometriaDisponible,
   desactivarBiometria,
+  mensajeErrorBiometria,
 } from "../lib/biometria";
 
 interface TrackSubido {
@@ -108,11 +109,9 @@ export default function MiCuentaPage() {
         await activarBiometria(session.user.id, nombreMostrado);
         setBiometriaOn(true);
       }
-    } catch {
+    } catch (e) {
       setErrorBiometria(
-        biometriaOn
-          ? "No se pudo desactivar. Probá de nuevo."
-          : "No se pudo activar — cancelaste el pedido de huella/rostro, o este dispositivo no tiene nada configurado.",
+        biometriaOn ? "No se pudo desactivar. Probá de nuevo." : `No se pudo activar. ${mensajeErrorBiometria(e)}`,
       );
     } finally {
       setCambiandoBiometria(false);

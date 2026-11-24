@@ -46,6 +46,34 @@ function base64UrlABuffer(base64url: string): ArrayBuffer {
 }
 
 /**
+ * Traduce el error real que tira navigator.credentials.create()/get()
+ * a algo entendible, SIN esconder el detalle técnico — para poder
+ * diagnosticar a distancia si el mensaje "entendible" no alcanza (ver
+ * MiCuentaPage.tsx, que es quien lo muestra).
+ */
+export function mensajeErrorBiometria(error: unknown): string {
+  const nombre = error instanceof DOMException ? error.name : "";
+  const explicacion = (() => {
+    switch (nombre) {
+      case "NotAllowedError":
+        return "Cancelaste el pedido, no llegó a confirmarse a tiempo, o el sistema operativo lo bloqueó.";
+      case "SecurityError":
+        return "El navegador bloqueó el pedido por un problema con el dominio del sitio.";
+      case "NotSupportedError":
+        return "Este dispositivo/navegador no soporta esto en el fondo, aunque haya parecido que sí.";
+      case "InvalidStateError":
+        return "Ya hay una credencial registrada en este dispositivo para esta cuenta.";
+      case "AbortError":
+        return "Se canceló el pedido.";
+      default:
+        return "No se pudo completar.";
+    }
+  })();
+  const detalle = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  return `${explicacion} (detalle: ${detalle})`;
+}
+
+/**
  * Si este navegador/dispositivo tiene un autenticador de plataforma
  * disponible (huella, rostro, PIN del dispositivo) para usar con
  * WebAuthn. Hay que chequear esto ANTES de ofrecer la opción en Mi
