@@ -549,10 +549,12 @@ function BarraReproductor() {
 
       {/* Registro técnico temporal — para diagnosticar con datos reales el
           bug de "no vuelve a sonar al reanudar desde la pantalla
-          bloqueada" en vez de seguir probando a ciegas. Colapsado por
-          defecto, no molesta a nadie que no lo abra a propósito. Sacar
-          una vez resuelto el bug de fondo (ver player.tsx). */}
-      {registro.length > 0 && (
+          bloqueada" en vez de seguir probando a ciegas. Solo para el admin
+          (Edgar): a cualquier otro suscriptor no le dice nada y es ruido
+          técnico de más en su reproductor. Colapsado por defecto incluso
+          para el admin. Sacar una vez resuelto el bug de fondo (ver
+          player.tsx). */}
+      {perfil?.rol === "admin" && registro.length > 0 && (
         <details className="text-[10px] text-muted">
           <summary className="cursor-pointer select-none flex items-center gap-2">
             <span>Ver registro técnico ({registro.length})</span>
