@@ -1074,7 +1074,7 @@ export default function CatalogoPage() {
         {/* BPM, Tonalidad, Duración y Fecha de subida: atrás de "Más
             filtros" (ver mostrarMasFiltros más arriba). */}
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-4 -mb-1">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 -mb-1">
             <button
               type="button"
               onClick={() => setMostrarMasFiltros((v) => !v)}
@@ -1094,6 +1094,15 @@ export default function CatalogoPage() {
               >
                 Limpiar filtros
               </button>
+            )}
+            {/* A pedido de Edgar: cuántos resultados dio el filtro
+                aplicado — antes no había forma de saberlo sin contar a
+                mano. Solo con algún filtro activo (ver hayFiltrosActivos);
+                sin filtros ya se ve el total en el banner de arriba. */}
+            {hayFiltrosActivos && !cargando && (
+              <span className="text-xs text-muted ml-auto">
+                {tracks.length} resultado{tracks.length === 1 ? "" : "s"}
+              </span>
             )}
           </div>
 
