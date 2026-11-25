@@ -60,8 +60,19 @@ export interface MensajeChat {
   audio_nombre_original: string | null;
   audio_tamano_mb: number | null;
   audio_duracion_seg: number | null;
+  // Ids de perfiles arrobados (@) en este mensaje (ver
+  // sql/021_notificaciones_push.sql) — los resuelve ChatPage a partir
+  // del autocompletado, nunca texto libre. Dispara una notificación
+  // push real a cada uno (lib/push.ts + app/push.py del backend).
+  menciones: string[];
   // Solo viene cuando se pide con el join a perfiles (ver ChatPage).
   perfiles?: { nombre_dj: string | null; email: string | null } | null;
+}
+
+/** Fila de public.listar_djs_para_mencion() — para el autocompletado de "@" en el chat. */
+export interface DjParaMencion {
+  id: string;
+  nombre: string;
 }
 
 export interface HerramientaDJ {
@@ -221,7 +232,12 @@ export type ConfiguracionCatalogoUpdate = Partial<
 export type PagoUpdate = Partial<Pick<Pago, "estado" | "confirmado_por">>;
 
 export type MensajeChatInsert = Pick<MensajeChat, "usuario_id" | "mensaje"> &
-  Partial<Pick<MensajeChat, "audio_storage_path" | "audio_nombre_original" | "audio_tamano_mb" | "audio_duracion_seg">>;
+  Partial<
+    Pick<
+      MensajeChat,
+      "audio_storage_path" | "audio_nombre_original" | "audio_tamano_mb" | "audio_duracion_seg" | "menciones"
+    >
+  >;
 
 export type HerramientaDJInsert = Pick<HerramientaDJ, "nombre" | "link_descarga"> &
   Partial<Omit<HerramientaDJ, "id" | "nombre" | "link_descarga" | "fecha_creacion">>;

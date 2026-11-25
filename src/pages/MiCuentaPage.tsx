@@ -11,6 +11,7 @@ import {
   desactivarBiometria,
   mensajeErrorBiometria,
 } from "../lib/biometria";
+import { activarPush, desactivarPush, mensajeErrorPush, pushActivado, pushDisponible } from "../lib/push";
 
 interface TrackSubido {
   id: string;
@@ -47,10 +48,15 @@ export default function MiCuentaPage() {
   const [cambiandoBiometria, setCambiandoBiometria] = useState(false);
   const [errorBiometria, setErrorBiometria] = useState<string | null>(null);
 
+  const [pushOn, setPushOn] = useState(false);
+  const [cambiandoPush, setCambiandoPush] = useState(false);
+  const [errorPush, setErrorPush] = useState<string | null>(null);
+
   useEffect(() => {
     if (!session) return;
     setBiometriaOn(biometriaActivada(session.user.id));
     biometriaDisponible().then(setBiometriaDisp);
+    pushActivado().then(setPushOn);
   }, [session]);
 
   useEffect(() => {
@@ -115,6 +121,25 @@ export default function MiCuentaPage() {
       );
     } finally {
       setCambiandoBiometria(false);
+    }
+  }
+
+  async function alternarPush() {
+    if (!session) return;
+    setErrorPush(null);
+    setCambiandoPush(true);
+    try {
+      if (pushOn) {
+        await desactivarPush();
+        setPushOn(false);
+      } else {
+        await activarPush(session.user.id);
+        setPushOn(true);
+      }
+    } catch (e) {
+      setErrorPush(pushOn ? "No se pudo desactivar. Probá de nuevo." : mensajeErrorPush(e));
+    } finally {
+      setCambiandoPush(false);
     }
   }
 
@@ -255,6 +280,34 @@ export default function MiCuentaPage() {
             </button>
           </div>
           {errorBiometria && <p className="text-xs text-accent font-medium m-0">{errorBiometria}</p>}
+        </div>
+      )}
+
+      {/* Notificaciones push: avisa en este dispositivo (como cualquier
+          notificación del celular, aunque la app esté cerrada o la
+          pantalla bloqueada) cuando alguien te arroba (@) en el chat
+          de comunidad. Es por DISPOSITIVO, igual que la biometría de
+          arriba — hay que activarla de nuevo en cada celular/navegador
+          donde se quiera recibir (ver lib/push.ts). */}
+      {pushDisponible() && (
+        <div className="bg-card rounded-2xl p-6 flex flex-col gap-2 border border-border-soft">
+          <div className="flex items-center justify-between gap-4 text-sm">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold text-ink">Notificaciones</span>
+              <span className="text-xs text-muted">Avisarme en este dispositivo cuando me arroben (@) en el chat.</span>
+            </div>
+            <button
+              type="button"
+              onClick={alternarPush}
+              disabled={cambiandoPush}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full appearance-none border-none cursor-pointer shrink-0 disabled:opacity-60 ${
+                pushOn ? "bg-accent/10 text-accent" : "bg-ink text-cream"
+              }`}
+            >
+              {cambiandoPush ? "..." : pushOn ? "Desactivar" : "Activar"}
+            </button>
+          </div>
+          {errorPush && <p className="text-xs text-accent font-medium m-0">{errorPush}</p>}
         </div>
       )}
 

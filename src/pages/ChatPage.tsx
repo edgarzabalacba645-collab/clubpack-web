@@ -5,7 +5,13 @@ import { useAuth, tieneAccesoActivo, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/au
 import { mensajeErrorAmigable } from "../lib/format";
 import { ApiError, limpiarChat, obtenerUrlAudioChat, subirAudioChat } from "../lib/api";
 import { useSubida } from "../lib/subida";
-import type { MensajeChat, MensajeChatInsert } from "../lib/types";
+import type { DjParaMencion, MensajeChat, MensajeChatInsert } from "../lib/types";
+
+// Para el autocompletado de "@": la última "@fragmento" sin espacios
+// antes del cursor — un espacio corta el intento (como en WhatsApp/
+// Slack), así no hace falta adivinar dónde termina un nombre con
+// espacios en medio de una oración cualquiera.
+const PATRON_MENCION_EN_CURSO = /@([^\s@]*)$/;
 
 const LIMITE_HISTORIAL = 100;
 
@@ -128,6 +134,18 @@ export default function ChatPage() {
   const [archivoAudio, setArchivoAudio] = useState<File | null>(null);
   const [limpiando, setLimpiando] = useState(false);
 
+  // Autocompletado de "@" (ver sql/021_notificaciones_push.sql): djs es
+  // la lista completa (se trae una sola vez), sugerencias es el
+  // recorte que se muestra mientras se escribe un "@algo", y
+  // mencionesMapRef guarda nombre -> id SOLO de los que se eligieron
+  // del desplegable — un "@Nombre" tipeado a mano, sin elegirlo de la
+  // lista, no disparó ninguna notificación (no hay forma confiable de
+  // saber a qué perfil se refería un texto libre).
+  const [djs, setDjs] = useState<DjParaMencion[]>([]);
+  const [sugerenciasMencion, setSugerenciasMencion] = useState<DjParaMencion[]>([]);
+  const mencionesMapRef = useRef<Map<string, string>>(new Map());
+  const inputTextoRef = useRef<HTMLInputElement | null>(null);
+
   const finRef = useRef<HTMLDivElement | null>(null);
   const inputAudioRef = useRef<HTMLInputElement | null>(null);
 
@@ -214,6 +232,50 @@ export default function ChatPage() {
     finRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [mensajes.length]);
 
+  useEffect(() => {
+    let activo = true;
+    supabase
+      .rpc("listar_djs_para_mencion")
+      .then(({ data, error }) => {
+        if (activo && !error) setDjs((data ?? []) as DjParaMencion[]);
+      });
+    return () => {
+      activo = false;
+    };
+  }, []);
+
+  function manejarCambioTexto(e: ChangeEvent<HTMLInputElement>) {
+    const valor = e.target.value;
+    setTexto(valor);
+
+    const cursor = e.target.selectionStart ?? valor.length;
+    const match = PATRON_MENCION_EN_CURSO.exec(valor.slice(0, cursor));
+    if (!match) {
+      setSugerenciasMencion([]);
+      return;
+    }
+    const fragmento = match[1].toLowerCase();
+    const encontrados = djs.filter((d) => d.nombre.toLowerCase().includes(fragmento)).slice(0, 5);
+    setSugerenciasMencion(encontrados);
+  }
+
+  function elegirMencion(dj: DjParaMencion) {
+    const input = inputTextoRef.current;
+    const cursor = input?.selectionStart ?? texto.length;
+    const antesDelCursor = texto.slice(0, cursor);
+    const despuesDelCursor = texto.slice(cursor);
+    const nuevoAntes = antesDelCursor.replace(PATRON_MENCION_EN_CURSO, `@${dj.nombre} `);
+
+    mencionesMapRef.current.set(dj.nombre, dj.id);
+    setTexto(nuevoAntes + despuesDelCursor);
+    setSugerenciasMencion([]);
+
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.setSelectionRange(nuevoAntes.length, nuevoAntes.length);
+    });
+  }
+
   async function enviar(e: FormEvent) {
     e.preventDefault();
     if (!session || (!texto.trim() && !archivoAudio)) return;
@@ -226,9 +288,17 @@ export default function ChatPage() {
     setEnviando(true);
     setError(null);
     try {
+      // Solo cuenta un "@Nombre" si sigue tal cual en el texto final
+      // (se pudo haber elegido del desplegable y después borrado a
+      // mano) — ver el comentario de mencionesMapRef más arriba.
+      const menciones = Array.from(mencionesMapRef.current.entries())
+        .filter(([nombre]) => texto.includes(`@${nombre}`))
+        .map(([, id]) => id);
+
       const nuevo: MensajeChatInsert = {
         usuario_id: session.user.id,
         mensaje: texto.trim() || MENSAJE_SIN_TEXTO_CON_AUDIO,
+        menciones,
       };
 
       if (archivoAudio) {
@@ -245,6 +315,7 @@ export default function ChatPage() {
       const { error } = await supabase.from("mensajes_chat").insert(nuevo);
       if (error) throw error;
       setTexto("");
+      mencionesMapRef.current.clear();
       setArchivoAudio(null);
       if (inputAudioRef.current) inputAudioRef.current.value = "";
     } catch (e) {
@@ -365,14 +436,31 @@ export default function ChatPage() {
           >
             <IconPaperclip />
           </button>
-          <input
-            type="text"
-            value={texto}
-            onChange={(e) => setTexto(e.target.value)}
-            placeholder={perfil ? `Escribí algo, ${perfil.nombre_dj ?? ""}…` : "Escribí un mensaje…"}
-            maxLength={1000}
-            className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-border text-sm bg-cream-soft focus:outline-2 focus:outline-accent"
-          />
+          <div className="relative flex-1 min-w-0">
+            {sugerenciasMencion.length > 0 && (
+              <div className="absolute bottom-full left-0 mb-1 w-full max-w-[240px] bg-card border border-border-soft rounded-xl shadow-lg overflow-hidden z-10">
+                {sugerenciasMencion.map((dj) => (
+                  <button
+                    key={dj.id}
+                    type="button"
+                    onClick={() => elegirMencion(dj)}
+                    className="w-full text-left px-3 py-2 text-sm appearance-none border-none bg-transparent cursor-pointer hover:bg-cream-soft"
+                  >
+                    @{dj.nombre}
+                  </button>
+                ))}
+              </div>
+            )}
+            <input
+              ref={inputTextoRef}
+              type="text"
+              value={texto}
+              onChange={manejarCambioTexto}
+              placeholder={perfil ? `Escribí algo, ${perfil.nombre_dj ?? ""}…` : "Escribí un mensaje…"}
+              maxLength={1000}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-border text-sm bg-cream-soft focus:outline-2 focus:outline-accent"
+            />
+          </div>
           <button
             type="submit"
             disabled={enviando || (!texto.trim() && !archivoAudio)}
