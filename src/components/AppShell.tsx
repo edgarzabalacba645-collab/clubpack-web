@@ -291,7 +291,6 @@ function BarraReproductor() {
     error,
     modoContinuo,
     toggleModoContinuo,
-    registro,
     contenedorRef,
     togglePlay,
     siguiente,
@@ -305,7 +304,6 @@ function BarraReproductor() {
   const { perfil } = useAuth();
   const [descargando, setDescargando] = useState(false);
   const [errorDescarga, setErrorDescarga] = useState<string | null>(null);
-  const [registroCopiado, setRegistroCopiado] = useState(false);
   const [colaAbierta, setColaAbierta] = useState(false);
   const guardarPlaylist = useGuardarPlaylist();
 
@@ -547,44 +545,6 @@ function BarraReproductor() {
         <p className="text-xs text-accent m-0 break-words">{errorDescarga ?? error}</p>
       )}
 
-      {/* Registro técnico temporal — para diagnosticar con datos reales el
-          bug de "no vuelve a sonar al reanudar desde la pantalla
-          bloqueada" en vez de seguir probando a ciegas. Solo para el admin
-          (Edgar): a cualquier otro suscriptor no le dice nada y es ruido
-          técnico de más en su reproductor. Colapsado por defecto incluso
-          para el admin. Sacar una vez resuelto el bug de fondo (ver
-          player.tsx). */}
-      {perfil?.rol === "admin" && registro.length > 0 && (
-        <details className="text-[10px] text-muted">
-          <summary className="cursor-pointer select-none flex items-center gap-2">
-            <span>Ver registro técnico ({registro.length})</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                navigator.clipboard
-                  .writeText(registro.join("\n"))
-                  .then(() => {
-                    setRegistroCopiado(true);
-                    setTimeout(() => setRegistroCopiado(false), 2000);
-                  })
-                  .catch(() => {});
-              }}
-              className="shrink-0 px-2 py-0.5 rounded border border-border-soft bg-transparent cursor-pointer text-muted"
-            >
-              {registroCopiado ? "¡Copiado!" : "Copiar"}
-            </button>
-          </summary>
-          <div className="mt-1 max-h-40 overflow-y-auto bg-cream-soft rounded-lg p-2 flex flex-col gap-0.5 font-mono">
-            {registro.map((linea, i) => (
-              <div key={i} className="break-words">
-                {linea}
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
     </div>
   );
 }

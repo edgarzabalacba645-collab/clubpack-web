@@ -92,13 +92,6 @@ interface PlayerContextValue {
    * parar. Se puede prender/apagar en cualquier momento. */
   modoContinuo: boolean;
   toggleModoContinuo: () => void;
-  /** Registro técnico temporal de los últimos eventos del reproductor
-   * (toques en la notificación, qué pasó con el cebado, eventos nativos
-   * play/pause/ready/finish, cambios de visibilidad) con hora exacta —
-   * para diagnosticar el bug de "no vuelve a sonar al reanudar desde la
-   * pantalla bloqueada" con datos reales del celular de Edgar en vez de
-   * hipótesis. Se puede sacar una vez resuelto (ver BarraReproductor). */
-  registro: string[];
   /** Ref callback para el <div> donde wavesurfer dibuja la onda — lo usa la barra del reproductor (ver AppShell). */
   contenedorRef: (el: HTMLDivElement | null) => void;
   reproducir: (track: TrackReproduccion, opciones?: ReproducirOpciones) => void;
@@ -155,20 +148,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [estado, setEstado] = useState<EstadoReproduccion>("pausado");
   const [error, setError] = useState<string | null>(null);
   const [modoContinuo, setModoContinuo] = useState(false);
-  // Registro técnico temporal — ver el comentario de "registro" en
-  // PlayerContextValue. registroRef es la fuente de verdad (evita closures
-  // obsoletas en los handlers nativos, registrados una sola vez); registro
-  // (state) es solo para que la UI se entere y vuelva a dibujar — setState
-  // SÍ sigue andando con la pantalla bloqueada (React procesa igual, solo
-  // se recorta el pintado visual), así que no hace falta nada especial.
-  const registroRef = useRef<string[]>([]);
-  const [registro, setRegistro] = useState<string[]>([]);
-  const anotar = useCallback((msg: string) => {
-    const ahora = new Date();
-    const hora = `${ahora.toLocaleTimeString("es-AR", { hour12: false })}.${String(ahora.getMilliseconds()).padStart(3, "0")}`;
-    registroRef.current = [...registroRef.current.slice(-59), `${hora} — ${msg}`];
-    setRegistro(registroRef.current);
-  }, []);
   const wsRef = useRef<WaveSurfer | null>(null);
   const contenedorElRef = useRef<HTMLDivElement | null>(null);
   // Cola + resolver de URL: colaRef es la fuente de verdad que usan
@@ -327,13 +306,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const reanudarConCebado = useCallback(async () => {
     const ws = wsRef.current;
     if (!ws) return;
-    anotar(
-      `Cebado: arrancando (mute+play) — currentTime=${ws.getCurrentTime().toFixed(2)} visibility=${document.visibilityState}`,
-    );
     try {
       ws.setMuted(true);
       await ws.play();
-      anotar("Cebado: play() resolvió OK, esperando confirmación de audio real");
       // Destapar el audio recién cuando el navegador confirma que avanzó
       // de verdad (evento nativo "timeupdate"), NO después de un tiempo
       // fijo con setTimeout como se hacía antes. Motivo: con la pantalla
@@ -350,46 +325,22 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // de 1.5s es solo una red de seguridad, no el camino principal.
       await new Promise<void>((resolve) => {
         let resuelto = false;
-        let viaTimeupdate = false;
         const destapar = () => {
           if (resuelto) return;
           resuelto = true;
           cancelarSuscripcion();
-          anotar(
-            viaTimeupdate
-              ? "Cebado: llegó timeupdate, destapando"
-              : "Cebado: no llegó timeupdate en 1.5s, destapando igual",
-          );
           resolve();
         };
-        const cancelarSuscripcion = ws.once("timeupdate", () => {
-          viaTimeupdate = true;
-          destapar();
-        });
+        const cancelarSuscripcion = ws.once("timeupdate", () => destapar());
         setTimeout(destapar, 1500);
       });
       ws.setMuted(false);
-      const t1 = ws.getCurrentTime();
-      anotar(`Cebado: destapado — isPlaying=${ws.isPlaying()} currentTime=${t1.toFixed(2)}`);
-      // Chequeo demorado: si currentTime NO avanzó para nada en este
-      // intervalo, el audio está realmente trabado (no solo mudo) —
-      // distingue "no sale sonido pero decodifica bien" de "se congeló
-      // del todo", algo que no se podía ver sin esto.
-      setTimeout(() => {
-        const wsAhora = wsRef.current;
-        if (!wsAhora) return;
-        const t2 = wsAhora.getCurrentTime();
-        anotar(
-          `Cebado: chequeo +800ms — currentTime=${t2.toFixed(2)} (venía de ${t1.toFixed(2)}) isPlaying=${wsAhora.isPlaying()} visibility=${document.visibilityState}`,
-        );
-      }, 800);
-    } catch (e) {
+    } catch {
       ws.setMuted(false);
-      anotar(`Cebado: play() rechazado — ${e instanceof Error ? e.message : String(e)}`);
       setError("El navegador bloqueó la reproducción — tocá play de nuevo.");
       setEstado("pausado");
     }
-  }, [anotar]);
+  }, []);
 
   // Registra (o vuelve a registrar) los controles de la notificación de la
   // pantalla bloqueada. Además de llamarse al montar (ver el useEffect de
@@ -407,24 +358,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const reasignarControlesMediaSession = useCallback(() => {
     if (!("mediaSession" in navigator)) return;
     navigator.mediaSession.setActionHandler("play", () => {
-      anotar("Notificación/control externo: PLAY tocado");
       void reanudarConCebado();
     });
     navigator.mediaSession.setActionHandler("pause", () => {
-      anotar("Notificación/control externo: PAUSE tocado");
       wsRef.current?.pause();
     });
     navigator.mediaSession.setActionHandler("nexttrack", () => {
-      anotar("Notificación/control externo: SIGUIENTE tocado");
       const actualId = trackActualIdRef.current;
       if (actualId) void avanzarSiguiente(actualId);
     });
     navigator.mediaSession.setActionHandler("previoustrack", () => {
-      anotar("Notificación/control externo: ANTERIOR tocado");
       const actualId = trackActualIdRef.current;
       if (actualId) void retrocederAnterior(actualId);
     });
-  }, [anotar, reanudarConCebado, avanzarSiguiente, retrocederAnterior]);
+  }, [reanudarConCebado, avanzarSiguiente, retrocederAnterior]);
 
   // Precarga la URL del tema que sigue apenas arranca el actual (no hace
   // falta esperar a que termine) — así ya está lista cuando "finish" la
@@ -529,7 +476,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // en segundo plano, modo ahorro de datos, etc.) — así no se queda
         // colgado en "cargando" para siempre sin avisar nada.
         ws?.play().catch(() => {
-          anotar("Evento ready: play() automático rechazado");
           setError("El navegador bloqueó la reproducción automática — tocá play para seguir.");
           setEstado("pausado");
         });
@@ -562,9 +508,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // Intento adicional (ver comentario grande en "reasignarControlesMediaSession"):
         // volver a registrar los botones, no solo repintar metadata.
         reasignarControlesMediaSession();
-        anotar(
-          `Evento nativo: play (currentTime=${ws?.getCurrentTime().toFixed(2)}, silencioPausado=${audioSilencioRef.current?.paused})`,
-        );
         setError(null);
         setEstado("sonando");
         // Anotar la escucha para el visor de actividad del admin — una
@@ -644,7 +587,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           pausarSilencioTimeoutRef.current = null;
           if (!wsRef.current?.isPlaying()) {
             audioSilencioRef.current?.pause();
-            anotar("Silencio: pausado (pasaron 500ms sin reanudar)");
           }
         }, 500);
         if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
@@ -654,16 +596,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // el bug del ícono de la notificación que se queda pegado en
         // "pausa" y no deja tocar "play" nunca.
         reasignarControlesMediaSession();
-        anotar(
-          `Evento nativo: pause (visibility=${document.visibilityState}, modoContinuo=${modoContinuoRef.current}, silencioPausado=${audioSilencioRef.current?.paused})`,
-        );
         if (modoContinuoRef.current && document.visibilityState === "hidden") {
           setError("El navegador pausó la reproducción en segundo plano.");
         }
         setEstado("pausado");
       });
       ws.on("finish", () => {
-        anotar("Evento nativo: finish (tema terminó)");
         const actualId = trackActualIdRef.current;
         if (modoContinuoRef.current && actualId) {
           void avanzarSiguiente(actualId);
@@ -682,7 +620,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         // error, así que nunca se llegaba a VER ningún aviso. Dejando el
         // track puesto (en pausa), el mensaje queda visible de verdad.
         console.error("wavesurfer error:", err);
-        anotar(`Evento nativo: error — ${err instanceof Error ? err.message : String(err)}`);
         setError("No se pudo reproducir (probablemente falta CORS en el bucket de R2).");
         setEstado("pausado");
       });
@@ -776,15 +713,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       navigator.mediaSession.setActionHandler("previoustrack", null);
     };
   }, [reasignarControlesMediaSession]);
-
-  // Registro técnico temporal: anota cuándo la pestaña pasa a segundo
-  // plano/vuelve (pantalla bloqueada, cambio de app) — ayuda a ubicar en
-  // el tiempo los demás eventos del registro respecto del bloqueo real.
-  useEffect(() => {
-    const handler = () => anotar(`visibilitychange → ${document.visibilityState}`);
-    document.addEventListener("visibilitychange", handler);
-    return () => document.removeEventListener("visibilitychange", handler);
-  }, [anotar]);
 
   // Red de seguridad para cuando el provider en sí se desmonta (en la práctica
   // casi nunca, vive en la raíz de la app) — evita dejar un <audio> colgado.
@@ -903,7 +831,6 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         error,
         modoContinuo,
         toggleModoContinuo,
-        registro,
         contenedorRef,
         reproducir,
         togglePlay,
