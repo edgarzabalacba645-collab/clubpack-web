@@ -249,20 +249,26 @@ export interface CrearSuscripcionMPResponse {
   sandbox_init_point: string | null;
 }
 
-export function crearSuscripcionMP() {
+// tipo: qué licencia quiere pagar — ver sql/022_precios_por_licencia.sql,
+// ahora hay un precio distinto para Simple y para DJ.
+export function crearSuscripcionMP(tipo: "simple" | "dj") {
   return apiFetchJson<CrearSuscripcionMPResponse>("/suscripcion/mercadopago/crear", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tipo_licencia: tipo }),
   });
 }
 
 // Aviso a Telegram cuando alguien marca "ya transferí" — el insert en
 // `pagos` en sí va directo por Supabase (RLS); esto solo dispara la
 // notificación, así el admin no tiene que estar revisando el panel.
-export function avisarPagoManual(comentario: string | null) {
+// tipo: qué licencia eligió, solo para que el texto del aviso ya lo diga
+// (lo "oficial" ya quedó guardado en perfiles.tipo_licencia_solicitada).
+export function avisarPagoManual(comentario: string | null, tipo: "simple" | "dj" | null) {
   return apiFetchJson<{ ok: boolean }>("/suscripcion/aviso-manual", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ comentario }),
+    body: JSON.stringify({ comentario, tipo_licencia: tipo }),
   });
 }
 

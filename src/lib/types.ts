@@ -17,6 +17,10 @@ export interface Perfil {
   rol: Rol;
   estado_suscripcion: EstadoSuscripcion;
   tipo_licencia: TipoLicencia;
+  // Ver sql/022_precios_por_licencia.sql. Licencia que el USUARIO pidió
+  // en la página de Suscripción (su elección) — distinto de
+  // tipo_licencia, que es la otorgada y solo la cambia un admin.
+  tipo_licencia_solicitada: TipoLicencia | null;
   mp_subscription_id: string | null;
   fecha_alta: string;
 }
@@ -135,9 +139,12 @@ export interface Pago {
 }
 
 // Fila única (singleton, id siempre `true`) con precio y datos de cobro.
+// Ver sql/022_precios_por_licencia.sql — un precio por tipo de licencia
+// en vez del precio_mensual único de antes.
 export interface ConfiguracionSuscripcion {
   id: true;
-  precio_mensual: number;
+  precio_mensual_simple: number;
+  precio_mensual_dj: number;
   moneda: string;
   cbu_cvu: string | null;
   alias_cbu: string | null;

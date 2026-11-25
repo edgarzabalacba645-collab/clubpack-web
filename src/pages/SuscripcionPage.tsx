@@ -14,6 +14,7 @@ import type {
   ConfiguracionSuscripcion,
   Pago,
   PagoManualInsert,
+  TipoLicencia,
 } from "../lib/types";
 
 export default function SuscripcionPage() {
@@ -36,6 +37,13 @@ export default function SuscripcionPage() {
   const [enviandoManual, setEnviandoManual] = useState(false);
   const [errorManual, setErrorManual] = useState<string | null>(null);
   const [avisoEnviado, setAvisoEnviado] = useState(false);
+
+  // Qué licencia eligió el usuario para pagar (Simple o DJ) — ver
+  // sql/022_precios_por_licencia.sql. Arranca en lo que ya tenía pedido o,
+  // si nunca eligió nada, en su licencia actual otorgada.
+  const [tipoElegido, setTipoElegido] = useState<TipoLicencia>("simple");
+  const [guardandoTipo, setGuardandoTipo] = useState(false);
+  const [errorTipo, setErrorTipo] = useState<string | null>(null);
 
   async function cargarPagos() {
     if (!session) return;
@@ -79,11 +87,42 @@ export default function SuscripcionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, volviendoDeMp]);
 
+  useEffect(() => {
+    if (perfil) setTipoElegido(perfil.tipo_licencia_solicitada ?? perfil.tipo_licencia);
+    // Solo nos importan estos dos campos puntuales, no cada vez que el
+    // objeto perfil cambia de referencia (p.ej. al recargar otro dato).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perfil?.tipo_licencia_solicitada, perfil?.tipo_licencia]);
+
+  // Guarda en el perfil qué licencia quiere (tipo_licencia_solicitada) —
+  // el propio usuario puede escribir esta columna (a diferencia de
+  // tipo_licencia, que solo cambia un admin). El admin la ve como guía al
+  // revisar el pago, en Admin > Suscripción.
+  async function elegirTipo(tipo: TipoLicencia) {
+    if (!session || tipo === tipoElegido) return;
+    setGuardandoTipo(true);
+    setErrorTipo(null);
+    setLinkMp(null); // el precio cambia según la licencia — no dejar un link/QR del precio viejo
+    try {
+      const { error } = await supabase
+        .from("perfiles")
+        .update({ tipo_licencia_solicitada: tipo })
+        .eq("id", session.user.id);
+      if (error) throw error;
+      setTipoElegido(tipo);
+      await recargarPerfil();
+    } catch (e) {
+      setErrorTipo(mensajeErrorAmigable(e));
+    } finally {
+      setGuardandoTipo(false);
+    }
+  }
+
   async function handlePagarMp() {
     setErrorMp(null);
     setCreandoMp(true);
     try {
-      const resultado = await crearSuscripcionMP();
+      const resultado = await crearSuscripcionMP(tipoElegido);
       setLinkMp({ init_point: resultado.init_point });
     } catch (e) {
       setErrorMp(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
@@ -110,7 +149,7 @@ export default function SuscripcionPage() {
       void cargarPagos();
       // Best-effort: si Telegram falla o no está configurado, el aviso ya
       // quedó guardado en `pagos` igual — no bloqueamos al usuario por esto.
-      avisarPagoManual(fila.comentario ?? null).catch(() => {});
+      avisarPagoManual(fila.comentario ?? null, tipoElegido).catch(() => {});
     } catch (e) {
       setErrorManual(mensajeErrorAmigable(e));
     } finally {
@@ -134,15 +173,23 @@ export default function SuscripcionPage() {
         </p>
       )}
 
-      <div className="bg-card rounded-2xl p-6 flex items-center justify-between gap-4 border border-border-soft">
-        <span className="text-sm text-muted font-medium">Tu suscripción</span>
-        <span
-          className={`font-semibold px-2.5 py-1 rounded-full text-xs ${
-            suscripcionOk ? "bg-accent-lime text-ink-fixed" : "bg-accent/10 text-accent"
-          }`}
-        >
-          {rotuloEstadoSuscripcion(estado)}
-        </span>
+      <div className="bg-card rounded-2xl p-6 flex flex-col gap-3 border border-border-soft">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-sm text-muted font-medium">Tu suscripción</span>
+          <span
+            className={`font-semibold px-2.5 py-1 rounded-full text-xs ${
+              suscripcionOk ? "bg-accent-lime text-ink-fixed" : "bg-accent/10 text-accent"
+            }`}
+          >
+            {rotuloEstadoSuscripcion(estado)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-sm text-muted font-medium">Tu licencia actual</span>
+          <span className="font-semibold px-2.5 py-1 rounded-full text-xs bg-cream-soft border border-border-soft">
+            {perfil?.tipo_licencia === "dj" ? "DJ" : "Simple"}
+          </span>
+        </div>
       </div>
 
       {cargandoConfig && <p className="text-sm text-muted">Cargando precio y datos de pago…</p>}
@@ -150,11 +197,33 @@ export default function SuscripcionPage() {
 
       {config && (
         <>
-          <section className="bg-card rounded-2xl p-6 border border-border-soft flex flex-col gap-2">
-            <h2 className="font-display font-bold text-lg m-0">Precio</h2>
-            <p className="text-2xl font-extrabold m-0">
-              {formatearMonto(config.precio_mensual, config.moneda)}{" "}
-              <span className="text-sm font-medium text-muted">/ mes</span>
+          <section className="flex flex-col gap-3">
+            <h2 className="font-display font-bold text-lg m-0">Elegí tu licencia</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <TarjetaLicencia
+                titulo="Simple"
+                descripcion="Escuchás todo el catálogo desde la app, sin descargar ni subir temas."
+                precio={config.precio_mensual_simple}
+                moneda={config.moneda}
+                seleccionada={tipoElegido === "simple"}
+                esLaActual={perfil?.tipo_licencia === "simple"}
+                onElegir={() => void elegirTipo("simple")}
+              />
+              <TarjetaLicencia
+                titulo="DJ"
+                descripcion="Escuchás, descargás en MP3 320kbps y subís tus propias versiones."
+                precio={config.precio_mensual_dj}
+                moneda={config.moneda}
+                seleccionada={tipoElegido === "dj"}
+                esLaActual={perfil?.tipo_licencia === "dj"}
+                onElegir={() => void elegirTipo("dj")}
+              />
+            </div>
+            {guardandoTipo && <p className="text-xs text-muted m-0">Guardando tu elección…</p>}
+            {errorTipo && <p className="text-xs text-accent m-0">{errorTipo}</p>}
+            <p className="text-xs text-muted-2 m-0">
+              Tu elección queda guardada para cuando un admin active o cambie tu suscripción — podés
+              cambiarla cuando quieras antes de pagar.
             </p>
           </section>
 
@@ -290,6 +359,53 @@ export default function SuscripcionPage() {
       </section>
       </div>
     </div>
+  );
+}
+
+function TarjetaLicencia({
+  titulo,
+  descripcion,
+  precio,
+  moneda,
+  seleccionada,
+  esLaActual,
+  onElegir,
+}: {
+  titulo: string;
+  descripcion: string;
+  precio: number;
+  moneda: string;
+  seleccionada: boolean;
+  esLaActual: boolean;
+  onElegir: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onElegir}
+      aria-pressed={seleccionada}
+      className={`text-left appearance-none cursor-pointer rounded-2xl p-5 flex flex-col gap-2 border-2 transition-colors ${
+        seleccionada ? "border-ink bg-card" : "border-border-soft bg-card hover:border-border"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-display font-bold text-base">{titulo}</span>
+        {esLaActual && (
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-accent-lime text-ink-fixed shrink-0">
+            Tu licencia actual
+          </span>
+        )}
+      </div>
+      <p className="text-xl font-extrabold m-0">
+        {formatearMonto(precio, moneda)} <span className="text-xs font-medium text-muted">/ mes</span>
+      </p>
+      <p className="text-xs text-muted m-0">{descripcion}</p>
+      <span
+        className={`mt-1 text-xs font-semibold ${seleccionada ? "text-ink" : "text-muted-2"}`}
+      >
+        {seleccionada ? "✓ Elegida" : "Elegir esta"}
+      </span>
+    </button>
   );
 }
 

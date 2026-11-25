@@ -1534,7 +1534,12 @@ function EstadoBadge({ estado }: { estado: EstadoTrack }) {
 // ============================================================
 
 interface PagoPendiente extends Pago {
-  perfiles: { nombre_dj: string | null; email: string | null } | null;
+  perfiles: {
+    nombre_dj: string | null;
+    email: string | null;
+    tipo_licencia: TipoLicencia;
+    tipo_licencia_solicitada: TipoLicencia | null;
+  } | null;
 }
 
 function SuscripcionAdminTab() {
@@ -1582,7 +1587,7 @@ function SuscripcionAdminTab() {
     try {
       const { data, error } = await supabase
         .from("pagos")
-        .select("*, perfiles(nombre_dj, email)")
+        .select("*, perfiles(nombre_dj, email, tipo_licencia, tipo_licencia_solicitada)")
         .eq("tipo", "manual")
         .eq("estado", "pendiente")
         .order("fecha");
@@ -1629,9 +1634,20 @@ function SuscripcionAdminTab() {
       if (errorPago) throw errorPago;
 
       if (p.usuario_id) {
+        // Si el usuario pidió una licencia (tipo_licencia_solicitada,
+        // elegida en su página de Suscripción — ver
+        // sql/022_precios_por_licencia.sql), se la otorgamos acá al
+        // activar; si nunca eligió nada, se deja tipo_licencia como
+        // estaba. El admin siempre puede corregirla después en Usuarios.
+        const actualizacion: { estado_suscripcion: "activo"; tipo_licencia?: TipoLicencia } = {
+          estado_suscripcion: "activo",
+        };
+        if (p.perfiles?.tipo_licencia_solicitada) {
+          actualizacion.tipo_licencia = p.perfiles.tipo_licencia_solicitada;
+        }
         const { error: errorPerfil } = await supabase
           .from("perfiles")
-          .update({ estado_suscripcion: "activo" })
+          .update(actualizacion)
           .eq("id", p.usuario_id);
         if (errorPerfil) throw errorPerfil;
       }
@@ -1671,14 +1687,26 @@ function SuscripcionAdminTab() {
         {config && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Campo etiqueta="Precio mensual">
+              <Campo etiqueta="Precio mensual — Simple (solo escucha)">
                 <input
                   type="number"
                   min={0}
                   step="0.01"
-                  value={edicion.precio_mensual ?? ""}
+                  value={edicion.precio_mensual_simple ?? ""}
                   onChange={(e) =>
-                    setEdicion((prev) => ({ ...prev, precio_mensual: Number(e.target.value) }))
+                    setEdicion((prev) => ({ ...prev, precio_mensual_simple: Number(e.target.value) }))
+                  }
+                  className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft w-full"
+                />
+              </Campo>
+              <Campo etiqueta="Precio mensual — DJ (con descarga y carga)">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={edicion.precio_mensual_dj ?? ""}
+                  onChange={(e) =>
+                    setEdicion((prev) => ({ ...prev, precio_mensual_dj: Number(e.target.value) }))
                   }
                   className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft w-full"
                 />
@@ -1774,7 +1802,21 @@ function SuscripcionAdminTab() {
               {p.comentario && <div className="text-xs text-muted">{p.comentario}</div>}
               <div className="text-xs text-muted-2">{formatearFecha(p.fecha)}</div>
             </div>
-            {config && <span className="text-sm font-semibold shrink-0">{formatearMonto(config.precio_mensual, config.moneda)}</span>}
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-cream-soft border border-border-soft shrink-0">
+              {p.perfiles?.tipo_licencia_solicitada
+                ? `Pidió: ${p.perfiles.tipo_licencia_solicitada === "dj" ? "DJ" : "Simple"}`
+                : "No eligió licencia"}
+            </span>
+            {config && (
+              <span className="text-sm font-semibold shrink-0">
+                {formatearMonto(
+                  (p.perfiles?.tipo_licencia_solicitada ?? p.perfiles?.tipo_licencia) === "dj"
+                    ? config.precio_mensual_dj
+                    : config.precio_mensual_simple,
+                  config.moneda,
+                )}
+              </span>
+            )}
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
