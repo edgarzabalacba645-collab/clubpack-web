@@ -1,15 +1,37 @@
-// Service worker mínimo — solo existe para que Chrome/Android considere
-// esta app "instalable" (uno de los requisitos para el PWA: instalada
-// como ícono en la pantalla de inicio, en vez de una pestaña común del
-// navegador, Chrome es mucho más confiable manteniendo la reproducción
-// de audio y la notificación de la pantalla de bloqueo con la pantalla
-// apagada — ver player.tsx y la investigación de reproducción continua).
+// Service worker — además de lo que ya hacía (instalabilidad + push, ver
+// abajo), ahora también guarda una copia de respaldo del "cascarón" de
+// la app (el HTML/JS/CSS propios + las tipografías de Google Fonts) para
+// poder ABRIRLA de cero sin nada de señal. Antes, si la pestaña no
+// estaba ya abierta en memoria, sin red no cargaba nada.
 //
-// A propósito NO cachea nada: el catálogo cambia seguido (temas nuevos,
-// arreglos) y servir una versión vieja del bundle desde caché sería
-// peor que no tener service worker. El fetch handler vacío (deja pasar
-// todo derecho a la red) es lo mínimo que pide el criterio de
-// instalabilidad.
+// Estrategia: red primero, caché de respaldo (ver fetch de más abajo).
+// Con señal, siempre se pide la versión real y se deja guardada — así
+// una actualización nueva llega igual que antes, apenas se abra de
+// nuevo con señal. Sin señal, si el pedido a la red falla, se sirve la
+// última copia buena guardada (puede ser vieja si hace mucho que no se
+// abre con señal, pero funciona).
+//
+// A propósito esto NO incluye nada dinámico: la API del backend,
+// Supabase, ni las URLs firmadas de R2 para bajar audio siguen yendo
+// directo a la red sin tocar — cachear esas rompería tokens que vencen
+// o mostraría catálogo/chat/estado de suscripción viejo. El audio
+// offline cifrado es un sistema aparte (ver lib/offline.ts, IndexedDB),
+// no tiene nada que ver con esto.
+const CACHE_CASCARON = "clubpack-cascaron-v1";
+const CLAVE_SHELL = "/"; // toda ruta de la SPA (/catalogo, /playlists, etc.) sirve el mismo index.html — una sola clave, no una copia por ruta
+
+function esPedidoDeCascaron(request) {
+  if (request.method !== "GET") return false;
+  const url = new URL(request.url);
+  if (request.mode === "navigate" && url.origin === self.location.origin) return true;
+  if (url.origin === self.location.origin && url.pathname.startsWith("/assets/")) return true;
+  // Tipografías de Google Fonts (ver index.html) — cross-origin pero
+  // estáticas, se cachean igual para que la app no se vea "rota" (con
+  // la tipografía de reserva del sistema) al abrirla sin señal.
+  if (url.origin === "https://fonts.googleapis.com" || url.origin === "https://fonts.gstatic.com") return true;
+  return false;
+}
+
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
@@ -18,8 +40,30 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener("fetch", () => {
-  // sin cache — cada pedido sigue yendo directo a la red
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (!esPedidoDeCascaron(request)) return; // todo lo demás sigue yendo directo a la red, sin tocar
+
+  const esNavegacion = request.mode === "navigate";
+
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(CACHE_CASCARON);
+      try {
+        const respuestaRed = await fetch(request);
+        // Solo se guarda una respuesta válida — un 404/500 no debe
+        // pisar una copia buena anterior.
+        if (respuestaRed && respuestaRed.ok) {
+          void cache.put(esNavegacion ? CLAVE_SHELL : request, respuestaRed.clone());
+        }
+        return respuestaRed;
+      } catch {
+        const enCache = await cache.match(esNavegacion ? CLAVE_SHELL : request);
+        if (enCache) return enCache;
+        throw new Error(`Sin red y sin copia en caché para ${request.url}`);
+      }
+    })(),
+  );
 });
 
 // ------------------------------------------------------------
