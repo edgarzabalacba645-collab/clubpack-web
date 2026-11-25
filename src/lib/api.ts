@@ -272,6 +272,20 @@ export function avisarPagoManual(comentario: string | null, tipo: "simple" | "dj
   });
 }
 
+// Aviso a Telegram cuando un suscriptor YA ACTIVO pide cambiar de licencia
+// (Simple↔DJ) sin que haya un pago nuevo de por medio — distinto de
+// avisarPagoManual, que es para la primera vez que alguien paga. El valor
+// "pedido" ya quedó guardado en perfiles.tipo_licencia_solicitada por el
+// propio frontend (update directo a Supabase, ver elegirTipo en
+// SuscripcionPage); esto solo dispara el aviso para que el admin se entere.
+export function pedirCambioLicencia(tipo: "simple" | "dj", comentario: string | null) {
+  return apiFetchJson<{ ok: boolean }>("/suscripcion/pedir-cambio-licencia", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tipo_licencia: tipo, comentario }),
+  });
+}
+
 // ---- Admin: borrar track (necesita las credenciales de R2, por eso pasa por la API) ----
 
 export function borrarTrackAdmin(trackId: string) {

@@ -297,6 +297,17 @@ function UsuariosTab() {
               ))}
             </select>
 
+            {/* El usuario puede pedir cambio de licencia desde Suscripción
+                (ver SuscripcionPage) sin que eso toque tipo_licencia todavía
+                — esto es solo el aviso visual acá, para quien no vio el
+                mensaje de Telegram. Se apaga solo en cuanto un admin guarda
+                el cambio arriba (tipo_licencia pasa a igualar lo pedido). */}
+            {u.tipo_licencia_solicitada && u.tipo_licencia_solicitada !== u.tipo_licencia && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-accent-lime/30 text-ink shrink-0">
+                Pidió: {u.tipo_licencia_solicitada === "dj" ? "DJ" : "Simple"}
+              </span>
+            )}
+
             {huboCambios && (
               <button
                 type="button"

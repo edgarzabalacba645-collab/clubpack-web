@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
-import { ApiError, avisarPagoManual, crearSuscripcionMP } from "../lib/api";
+import { ApiError, avisarPagoManual, crearSuscripcionMP, pedirCambioLicencia } from "../lib/api";
 import {
   formatearFecha,
   formatearMonto,
@@ -37,6 +37,15 @@ export default function SuscripcionPage() {
   const [enviandoManual, setEnviandoManual] = useState(false);
   const [errorManual, setErrorManual] = useState<string | null>(null);
   const [avisoEnviado, setAvisoEnviado] = useState(false);
+
+  // Pedido de cambio de licencia para alguien que YA está activo, sin que
+  // medie un pago nuevo en el momento — ver pedirCambioLicencia en
+  // lib/api.ts. Distinto del aviso de transferencia de arriba, que es
+  // para la primera vez que alguien paga.
+  const [comentarioCambio, setComentarioCambio] = useState("");
+  const [enviandoCambio, setEnviandoCambio] = useState(false);
+  const [errorCambio, setErrorCambio] = useState<string | null>(null);
+  const [cambioEnviado, setCambioEnviado] = useState(false);
 
   // Qué licencia eligió el usuario para pagar (Simple o DJ) — ver
   // sql/022_precios_por_licencia.sql. Arranca en lo que ya tenía pedido o,
@@ -103,6 +112,8 @@ export default function SuscripcionPage() {
     setGuardandoTipo(true);
     setErrorTipo(null);
     setLinkMp(null); // el precio cambia según la licencia — no dejar un link/QR del precio viejo
+    setCambioEnviado(false); // si ya habían pedido un cambio, esta nueva elección lo reemplaza
+    setErrorCambio(null);
     try {
       const { error } = await supabase
         .from("perfiles")
@@ -115,6 +126,23 @@ export default function SuscripcionPage() {
       setErrorTipo(mensajeErrorAmigable(e));
     } finally {
       setGuardandoTipo(false);
+    }
+  }
+
+  // Para quien YA tiene la suscripción activa y tocó la otra tarjeta: el
+  // valor pedido ya quedó guardado arriba (elegirTipo) — esto solo manda
+  // el aviso a Telegram para que el admin se entere sin que medie un pago
+  // nuevo (a diferencia de handleAvisarManual, pensado para el primer pago).
+  async function handlePedirCambio() {
+    setErrorCambio(null);
+    setEnviandoCambio(true);
+    try {
+      await pedirCambioLicencia(tipoElegido, comentarioCambio.trim() || null);
+      setCambioEnviado(true);
+    } catch (e) {
+      setErrorCambio(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setEnviandoCambio(false);
     }
   }
 
@@ -221,10 +249,50 @@ export default function SuscripcionPage() {
             </div>
             {guardandoTipo && <p className="text-xs text-muted m-0">Guardando tu elección…</p>}
             {errorTipo && <p className="text-xs text-accent m-0">{errorTipo}</p>}
-            <p className="text-xs text-muted-2 m-0">
-              Tu elección queda guardada para cuando un admin active o cambie tu suscripción — podés
-              cambiarla cuando quieras antes de pagar.
-            </p>
+
+            {suscripcionOk && perfil && tipoElegido !== perfil.tipo_licencia ? (
+              <div className="flex flex-col gap-3 bg-cream-soft border border-border-soft rounded-xl px-4 py-3.5">
+                <p className="text-sm m-0">
+                  Tu suscripción ya está activa en licencia{" "}
+                  <strong>{perfil.tipo_licencia === "dj" ? "DJ" : "Simple"}</strong>. Para pasar a{" "}
+                  <strong>{tipoElegido === "dj" ? "DJ" : "Simple"}</strong>, pedíselo a un admin:
+                </p>
+                {!cambioEnviado ? (
+                  <>
+                    <textarea
+                      value={comentarioCambio}
+                      onChange={(e) => setComentarioCambio(e.target.value)}
+                      placeholder="Opcional: por qué querés el cambio, o algo que le sirva al admin."
+                      rows={2}
+                      className="rounded-lg border border-border-soft px-3 py-2 text-sm resize-none bg-card focus:outline-none focus-visible:ring-2 focus-visible:ring-ink/30"
+                    />
+                    {errorCambio && <p className="text-sm text-accent m-0">{errorCambio}</p>}
+                    <button
+                      type="button"
+                      onClick={() => void handlePedirCambio()}
+                      disabled={enviandoCambio}
+                      className="self-start px-5 py-2.5 rounded-lg bg-ink text-cream text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                    >
+                      {enviandoCambio
+                        ? "Enviando…"
+                        : `Pedir cambio a ${tipoElegido === "dj" ? "DJ" : "Simple"}`}
+                    </button>
+                  </>
+                ) : (
+                  <p className="text-sm bg-accent-lime/30 border border-accent-lime rounded-xl px-4 py-3 m-0">
+                    Listo, le avisamos a los admins que querés pasar a{" "}
+                    {tipoElegido === "dj" ? "DJ" : "Simple"}.
+                  </p>
+                )}
+              </div>
+            ) : (
+              !suscripcionOk && (
+                <p className="text-xs text-muted-2 m-0">
+                  Tu elección queda guardada para cuando un admin active o cambie tu suscripción —
+                  podés cambiarla cuando quieras antes de pagar.
+                </p>
+              )
+            )}
           </section>
 
           {config.mp_habilitado && (
