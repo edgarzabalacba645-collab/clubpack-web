@@ -4,6 +4,7 @@ import { abrirDescargaDirecta, ApiError, obtenerUrlDescarga } from "./api";
 import { tieneAccesoActivo, useAuth } from "./auth";
 import { usePlayer, type TrackCola } from "./player";
 import { useFavoritos } from "./favoritos";
+import { guardarOffline, listarIdsManualOffline, obtenerUrlReproduccion, onCambioOffline, quitarOffline } from "./offline";
 import type { AccionesFila } from "../components/ListaTracks";
 
 /** Lo mínimo que necesita saber el reproductor de un tema. */
@@ -29,6 +30,27 @@ export function useEscucha() {
   const [descargandoId, setDescargandoId] = useState<string | null>(null);
   const [avisoSuscripcion, setAvisoSuscripcion] = useState<string | null>(null);
   const [avisoAccion, setAvisoAccion] = useState<string | null>(null);
+
+  // Temas guardados a mano para escuchar sin conexión (ver lib/offline.ts)
+  // — se usa para pintar el ícono en cada fila. Se carga una vez y se
+  // refresca solo cuando algo cambia (en esta pantalla o en otra).
+  const [offlineIds, setOfflineIds] = useState<Set<string>>(new Set());
+  const [guardandoOfflineId, setGuardandoOfflineId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    const cargar = () => {
+      void listarIdsManualOffline().then((ids) => {
+        if (!cancelado) setOfflineIds(ids);
+      });
+    };
+    cargar();
+    const quitarListener = onCambioOffline(cargar);
+    return () => {
+      cancelado = true;
+      quitarListener();
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -62,13 +84,17 @@ export function useEscucha() {
       setAvisoAccion(null);
       setCargandoId(track.id);
       try {
-        const { url, duracion_seg, peaks } = await obtenerUrlDescarga(track.id, false);
+        // obtenerUrlReproduccion mira primero si el tema está guardado
+        // offline (ver lib/offline.ts) y si es así descifra en memoria en
+        // vez de pedirle una URL al backend — mismo resultado para quien
+        // llama, sin gastar datos cuando ya está guardado.
+        const { url, duracion_seg, peaks } = await obtenerUrlReproduccion(track.id);
         player.reproducir(
           { ...track, duracion_seg: duracion_seg ?? track.duracion_seg, url, peaks },
           {
             cola: tieneAccesoActivo(perfil) ? cola : cola.filter((t) => muestraGratisIds.has(t.id)),
             resolverUrl: async (id) => {
-              const r = await obtenerUrlDescarga(id, false);
+              const r = await obtenerUrlReproduccion(id);
               return { url: r.url, duracion_seg: r.duracion_seg, peaks: r.peaks };
             },
           },
@@ -102,6 +128,34 @@ export function useEscucha() {
     [perfil],
   );
 
+  // Guardar/quitar un tema suelto para escuchar sin conexión — a
+  // diferencia de descargar(), esto es para CUALQUIER usuario (Simple
+  // incluido): no exige licencia DJ ni suscripción activa de descarga,
+  // solo poder escuchar el tema (mismo criterio que reproducir()).
+  const toggleOffline = useCallback(
+    async (track: TrackEscuchable) => {
+      setAvisoAccion(null);
+      const yaGuardado = offlineIds.has(track.id);
+      setGuardandoOfflineId(track.id);
+      try {
+        if (yaGuardado) {
+          await quitarOffline(track.id);
+        } else {
+          if (!puedeEscuchar(track.id)) {
+            setAvisoSuscripcion(MENSAJE_ESCUCHA_SIN_ACCESO);
+            return;
+          }
+          await guardarOffline(track, "manual");
+        }
+      } catch (e) {
+        setAvisoAccion(e instanceof Error ? e.message : "No se pudo guardar para escuchar sin conexión.");
+      } finally {
+        setGuardandoOfflineId(null);
+      }
+    },
+    [offlineIds, puedeEscuchar],
+  );
+
   return {
     player,
     puedeEscuchar,
@@ -113,6 +167,9 @@ export function useEscucha() {
     setAvisoSuscripcion,
     avisoAccion,
     setAvisoAccion,
+    offlineIds,
+    guardandoOfflineId,
+    toggleOffline,
   };
 }
 
@@ -139,6 +196,9 @@ export function useAccionesLista(cola: TrackEscuchable[]) {
     esFavorito: favoritos.esFavorito,
     conteoFavoritos: (id) => favoritos.metricasDe(id).favoritos,
     onToggleFavorito: (id) => void favoritos.toggleFavorito(id),
+    esOffline: (id) => escucha.offlineIds.has(id),
+    guardandoOfflineId: escucha.guardandoOfflineId,
+    onToggleOffline: (track) => void escucha.toggleOffline(track),
   };
 
   return { acciones, escucha, favoritos };

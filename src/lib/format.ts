@@ -26,6 +26,15 @@ export function formatearBpm(bpm: number | null): string {
   return bpm % 1 === 0 ? `${bpm}` : bpm.toFixed(1);
 }
 
+/** "3,4 MB" / "128 KB" — para el espacio usado por lo guardado offline (ver lib/offline.ts). */
+export function formatearTamano(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(0)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1).replace(".", ",")} MB`;
+}
+
 /**
  * Mensajes de red crudos (fetch/TypeError) no son útiles para mostrarle a
  * un DJ cualquiera — acá se cambian por algo legible. Todo lo demás (un

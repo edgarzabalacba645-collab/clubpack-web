@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { descargarVariosDirecto, descargarPlaylistZip, obtenerUrlDescarga, ApiError } from "../lib/api";
+import { descargarVariosDirecto, descargarPlaylistZip, ApiError } from "../lib/api";
 import { formatearBpm, formatearFecha, mensajeErrorAmigable } from "../lib/format";
 import type { Genero } from "../lib/types";
 import { useAuth, tieneAccesoActivo, esLicenciaDj, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
 import { usePlayer } from "../lib/player";
+import {
+  guardarOfflinePlaylist,
+  obtenerUrlReproduccion,
+  onCambioOffline,
+  playlistGuardadaOffline,
+  quitarOfflinePlaylist,
+} from "../lib/offline";
 
 /** Fisher-Yates — alcanza y sobra para elegir N temas al azar de la lista que matchea los filtros. */
 function mezclar<T>(arr: T[]): T[] {
@@ -49,12 +56,42 @@ export default function PlaylistsPage() {
   const [confirmandoBorrarId, setConfirmandoBorrarId] = useState<string | null>(null);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
 
+  // Qué playlists están guardadas offline (cifrado, para escuchar sin
+  // conexión — ver lib/offline.ts): todos sus temas con el origen
+  // "playlist:<id>". Se recalcula cada vez que cambia algo offline (en
+  // esta pantalla o en otra) o la lista de tracks por playlist.
+  const [offlinePorPlaylist, setOfflinePorPlaylist] = useState<Record<string, boolean>>({});
+  const [guardandoOfflineId, setGuardandoOfflineId] = useState<string | null>(null);
+
   const [generos, setGeneros] = useState<Genero[]>([]);
   const [generoGenId, setGeneroGenId] = useState("");
   const [cantidadGen, setCantidadGen] = useState("20");
   const [bpmMinGen, setBpmMinGen] = useState("");
   const [bpmMaxGen, setBpmMaxGen] = useState("");
   const [generando, setGenerando] = useState(false);
+
+  // Recalcula qué playlists están 100% guardadas offline cada vez que
+  // cambia la lista de tracks por playlist, o algo offline en CUALQUIER
+  // pantalla (p.ej. se quitó un tema a mano desde el Catálogo).
+  useEffect(() => {
+    let cancelado = false;
+    const recalcular = () => {
+      void Promise.all(
+        Object.entries(tracksPorPlaylist).map(async ([id, tracks]) => [
+          id,
+          await playlistGuardadaOffline(id, tracks.map((t) => t.id)),
+        ] as const),
+      ).then((pares) => {
+        if (!cancelado) setOfflinePorPlaylist(Object.fromEntries(pares));
+      });
+    };
+    recalcular();
+    const quitarListener = onCambioOffline(recalcular);
+    return () => {
+      cancelado = true;
+      quitarListener();
+    };
+  }, [tracksPorPlaylist]);
 
   useEffect(() => {
     cargarPlaylists();
@@ -205,7 +242,7 @@ export default function PlaylistsPage() {
     setReproduciendoId(playlist.id);
     try {
       const primero = tracks[0];
-      const { url, duracion_seg, peaks } = await obtenerUrlDescarga(primero.id, false);
+      const { url, duracion_seg, peaks } = await obtenerUrlReproduccion(primero.id);
       if (!player.modoContinuo) player.toggleModoContinuo();
       player.reproducir(
         {
@@ -226,7 +263,7 @@ export default function PlaylistsPage() {
             duracion_seg: t.duracion_seg,
           })),
           resolverUrl: async (id) => {
-            const r = await obtenerUrlDescarga(id, false);
+            const r = await obtenerUrlReproduccion(id);
             return { url: r.url, duracion_seg: r.duracion_seg, peaks: r.peaks };
           },
         },
@@ -235,6 +272,27 @@ export default function PlaylistsPage() {
       setAviso(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
     } finally {
       setReproduciendoId(null);
+    }
+  }
+
+  // Guarda offline TODOS los temas de la playlist de una — o, si ya
+  // estaba, saca ese origen de todos (los que además estén guardados a
+  // mano, u otra playlist, quedan igual — ver lib/offline.ts).
+  async function toggleOfflinePlaylist(playlist: PlaylistFila) {
+    const tracks = tracksPorPlaylist[playlist.id] ?? [];
+    if (tracks.length === 0) return;
+    setAviso(null);
+    setGuardandoOfflineId(playlist.id);
+    try {
+      if (offlinePorPlaylist[playlist.id]) {
+        await quitarOfflinePlaylist(playlist.id);
+      } else {
+        await guardarOfflinePlaylist(playlist.id, tracks);
+      }
+    } catch (e) {
+      setAviso(e instanceof Error ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setGuardandoOfflineId(null);
     }
   }
 
@@ -258,6 +316,9 @@ export default function PlaylistsPage() {
       const { error } = await supabase.from("playlists").delete().eq("id", playlist.id);
       if (error) throw error;
       setPlaylists((prev) => prev.filter((p) => p.id !== playlist.id));
+      // Limpia lo guardado offline que dependía SOLO de esta playlist —
+      // lo que además esté guardado a mano (u otra playlist) no se toca.
+      void quitarOfflinePlaylist(playlist.id);
     } catch (e) {
       setAviso(mensajeErrorAmigable(e));
     } finally {
@@ -423,6 +484,25 @@ export default function PlaylistsPage() {
                     {descargandoId === p.id ? "Descargando…" : "Descargar playlist completa"}
                   </button>
                 )}
+
+                {/* Escuchar sin conexión (cifrado) — a diferencia del
+                    botón de arriba, esto es para CUALQUIER licencia. */}
+                <button
+                  type="button"
+                  onClick={() => void toggleOfflinePlaylist(p)}
+                  disabled={guardandoOfflineId === p.id || tracks.length === 0}
+                  className={`text-sm font-semibold px-4 py-2 rounded-full appearance-none border cursor-pointer disabled:opacity-50 ${
+                    offlinePorPlaylist[p.id]
+                      ? "border-accent-lime bg-accent-lime/15 text-ink"
+                      : "border-border bg-transparent text-body hover:border-ink"
+                  }`}
+                >
+                  {guardandoOfflineId === p.id
+                    ? "Guardando…"
+                    : offlinePorPlaylist[p.id]
+                      ? "✓ Guardada sin conexión"
+                      : "Guardar sin conexión"}
+                </button>
 
                 {esDueno && confirmandoBorrarId !== p.id && (
                   <button

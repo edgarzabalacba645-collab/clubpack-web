@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { formatearBpm, formatearDuracion } from "../lib/format";
 import type { TrackResumen } from "../lib/tracks";
 import BotonCorazon from "./BotonCorazon";
+import BotonOffline from "./BotonOffline";
 import BotonReproducir from "./BotonReproducir";
 import MenuContextualTrack from "./MenuContextualTrack";
 import Portada from "./Portada";
@@ -26,6 +27,11 @@ export interface AccionesFila {
   esFavorito: (id: string) => boolean;
   conteoFavoritos: (id: string) => number;
   onToggleFavorito: (id: string) => void;
+  /** Escuchar sin conexión (cifrado, para TODOS — ver lib/offline.ts),
+   * distinto de onDescargar que es la descarga real y solo DJ. */
+  esOffline: (id: string) => boolean;
+  guardandoOfflineId: string | null;
+  onToggleOffline: (track: TrackResumen) => void;
 }
 
 /**
@@ -114,6 +120,11 @@ export default function ListaTracks({
                   activo={acciones.esFavorito(t.id)}
                   cantidad={acciones.conteoFavoritos(t.id)}
                   onClick={() => acciones.onToggleFavorito(t.id)}
+                />
+                <BotonOffline
+                  guardado={acciones.esOffline(t.id)}
+                  cargando={acciones.guardandoOfflineId === t.id}
+                  onClick={() => acciones.onToggleOffline(t)}
                 />
                 {puedeDescargar && (
                   <button

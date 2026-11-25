@@ -14,6 +14,7 @@ import AdminPage from "./pages/AdminPage";
 import FavoritosPage from "./pages/FavoritosPage";
 import NovedadesPage from "./pages/NovedadesPage";
 import DescargasPage from "./pages/DescargasPage";
+import SinConexionPage from "./pages/SinConexionPage";
 import { ContactoPage, PrivacidadPage, TerminosPage } from "./pages/LegalPages";
 import AppShell from "./components/AppShell";
 import { RutaProtegida, RutaAdmin } from "./components/ProtectedRoute";
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="/favoritos" element={<FavoritosPage />} />
             <Route path="/novedades" element={<NovedadesPage />} />
             <Route path="/descargas" element={<DescargasPage />} />
+            <Route path="/sin-conexion" element={<SinConexionPage />} />
             <Route path="/terminos" element={<TerminosPage />} />
             <Route path="/privacidad" element={<PrivacidadPage />} />
             <Route path="/contacto" element={<ContactoPage />} />

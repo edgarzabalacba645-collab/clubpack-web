@@ -24,8 +24,10 @@ import { useAuth, tieneAccesoActivo, esLicenciaDj, MENSAJE_SIN_ACCESO_ACTIVO } f
 import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { usePlayer } from "../lib/player";
 import { useFavoritos } from "../lib/favoritos";
+import { guardarOffline, listarIdsManualOffline, obtenerUrlReproduccion, onCambioOffline, quitarOffline } from "../lib/offline";
 import Portada from "../components/Portada";
 import BotonCorazon from "../components/BotonCorazon";
+import BotonOffline from "../components/BotonOffline";
 import MenuContextualTrack from "../components/MenuContextualTrack";
 import AvisoSuscripcionModal from "../components/AvisoSuscripcionModal";
 
@@ -206,6 +208,51 @@ export default function CatalogoPage() {
   );
 
   const { metricasDe, esFavorito, toggleFavorito } = useFavoritos();
+
+  // Escuchar sin conexión (cifrado, para TODOS los usuarios — ver
+  // lib/offline.ts), distinto del botón "Bajar" de arriba que es la
+  // descarga real y solo DJ. Mismo patrón que useAccionesLista (usado en
+  // Favoritos/Novedades/Descargas), repetido acá porque esta pantalla
+  // tiene su propio reproducir()/descargar() integrados con sus filtros.
+  const [offlineIds, setOfflineIds] = useState<Set<string>>(new Set());
+  const [guardandoOfflineId, setGuardandoOfflineId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelado = false;
+    const cargar = () => {
+      void listarIdsManualOffline().then((ids) => {
+        if (!cancelado) setOfflineIds(ids);
+      });
+    };
+    cargar();
+    const quitarListener = onCambioOffline(cargar);
+    return () => {
+      cancelado = true;
+      quitarListener();
+    };
+  }, []);
+
+  async function toggleOffline(track: TrackFila) {
+    setAvisoAccion(null);
+    const yaGuardado = offlineIds.has(track.id);
+    setGuardandoOfflineId(track.id);
+    try {
+      if (yaGuardado) {
+        await quitarOffline(track.id);
+      } else {
+        if (!puedeEscucharTrack(track)) {
+          setAvisoSuscripcion(
+            "Para escuchar este tema necesitás una suscripción activa. Mientras tanto, podés escuchar gratis los últimos 10 temas de Cachengue.",
+          );
+          return;
+        }
+        await guardarOffline(track, "manual");
+      }
+    } catch (e) {
+      setAvisoAccion(e instanceof Error ? e.message : "No se pudo guardar para escuchar sin conexión.");
+    } finally {
+      setGuardandoOfflineId(null);
+    }
+  }
 
   // "Catálogo completo" se pagina: cada Portada montada pide una URL
   // firmada al backend (ver src/components/Portada.tsx -> urlImagen), que
@@ -443,7 +490,7 @@ export default function CatalogoPage() {
     setAvisoAccion(null);
     setCargandoPreviewId(track.id);
     try {
-      const { url, duracion_seg, peaks } = await obtenerUrlDescarga(track.id, false);
+      const { url, duracion_seg, peaks } = await obtenerUrlReproduccion(track.id);
       player.reproducir(
         {
           id: track.id,
@@ -474,7 +521,7 @@ export default function CatalogoPage() {
             duracion_seg: t.duracion_seg,
           })),
           resolverUrl: async (id) => {
-            const r = await obtenerUrlDescarga(id, false);
+            const r = await obtenerUrlReproduccion(id);
             return { url: r.url, duracion_seg: r.duracion_seg, peaks: r.peaks };
           },
         },
@@ -1449,6 +1496,11 @@ export default function CatalogoPage() {
                     activo={esFavorito(t.id)}
                     cantidad={metricasDe(t.id).favoritos}
                     onClick={() => void toggleFavorito(t.id)}
+                  />
+                  <BotonOffline
+                    guardado={offlineIds.has(t.id)}
+                    cargando={guardandoOfflineId === t.id}
+                    onClick={() => void toggleOffline(t)}
                   />
 
                   {puedeEditar && (

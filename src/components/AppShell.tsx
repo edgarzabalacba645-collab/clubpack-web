@@ -38,6 +38,18 @@ function IconDownloadNav() {
   );
 }
 
+/** Escuchar sin conexión (cifrado, para todos) — nube con un check, para
+ * distinguirlo a simple vista del ícono de "Descargas" de arriba (la
+ * descarga real, solo DJ). */
+function IconOffline() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 16.5a4 4 0 0 1-.5-7.97A5 5 0 0 1 16.3 8a3.5 3.5 0 0 1-.3 8.5H7Z" />
+      <path d="m9 13.3 2 2 3.5-3.8" />
+    </svg>
+  );
+}
+
 function IconSparkle() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -554,6 +566,7 @@ const NAV_ITEMS_BASE: { to: string; label: string; icon: ReactNode }[] = [
   { to: "/novedades", label: "Novedades", icon: <IconSparkle /> },
   { to: "/favoritos", label: "Favoritos", icon: <IconHeart /> },
   { to: "/descargas", label: "Descargas", icon: <IconDownloadNav /> },
+  { to: "/sin-conexion", label: "Sin conexión", icon: <IconOffline /> },
   { to: "/playlists", label: "Listas", icon: <IconPlaylist /> },
   { to: "/top50", label: "Ranking", icon: <IconTrofeo /> },
   { to: "/chat", label: "Comunidad", icon: <IconChat /> },
