@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { supabase } from "./supabase";
 import { ApiError, analizarDesdeChat, analizarTrack, confirmarSubida, type AnalisisTrack } from "./api";
 import { mensajeErrorAmigable, tituloDesdeNombreArchivo } from "./format";
-import type { Genero } from "./types";
+import { ordenarGenerosAlfabetico, type Genero } from "./types";
 
 export type FaseSubida = "formulario" | "analizando" | "revision" | "confirmando" | "listo";
 export type ModoSubida = "individual" | "masivo";
@@ -96,7 +96,7 @@ export function SubidaProvider({ children }: { children: ReactNode }) {
         .select("*")
         .eq("activo", true)
         .order("orden");
-      if (!error && data) setGeneros(data);
+      if (!error && data) setGeneros(ordenarGenerosAlfabetico(data));
     } catch {
       // el selector de género simplemente queda con lo que ya tenía si esto falla
     }

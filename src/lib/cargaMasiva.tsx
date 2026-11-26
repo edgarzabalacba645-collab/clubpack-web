@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { supabase } from "./supabase";
 import { ApiError, analizarTrack, confirmarSubida, type DuplicadoCandidato } from "./api";
 import { mensajeErrorAmigable, tituloDesdeNombreArchivo } from "./format";
-import type { Genero } from "./types";
+import { ordenarGenerosAlfabetico, type Genero } from "./types";
 
 export type EstadoFila = "pendiente" | "analizando" | "revision" | "subiendo" | "listo" | "error";
 
@@ -96,7 +96,7 @@ export function CargaMasivaProvider({ children }: { children: ReactNode }) {
           .select("*")
           .eq("activo", true)
           .order("orden");
-        if (!error && data) setGeneros(data);
+        if (!error && data) setGeneros(ordenarGenerosAlfabetico(data));
       } catch {
         // el selector de género simplemente queda vacío si esto falla
       }

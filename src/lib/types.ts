@@ -32,6 +32,18 @@ export interface Genero {
   orden: number;
 }
 
+/**
+ * Orden alfabético (es-AR) para listas de género — selector de carga,
+ * filtro del catálogo, selector de playlists y la lista de Admin. La
+ * columna "orden" de la tabla generos no tiene ningún control en Admin
+ * para reordenarla a mano (solo alta/baja), así que hoy equivale más o
+ * menos al orden de creación — alfabético es mucho más fácil de ubicar
+ * a ojo a medida que se suman géneros nuevos.
+ */
+export function ordenarGenerosAlfabetico<T extends { nombre: string }>(generos: T[]): T[] {
+  return [...generos].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
 export interface Track {
   id: string;
   titulo: string;

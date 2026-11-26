@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { descargarVariosDirecto, descargarPlaylistZip, ApiError } from "../lib/api";
 import { formatearBpm, formatearFecha, mensajeErrorAmigable } from "../lib/format";
-import type { Genero } from "../lib/types";
+import { ordenarGenerosAlfabetico, type Genero } from "../lib/types";
 import { useAuth, tieneAccesoActivo, esLicenciaDj, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
 import { usePlayer } from "../lib/player";
 import {
@@ -102,7 +102,7 @@ export default function PlaylistsPage() {
           .select("*")
           .eq("activo", true)
           .order("orden");
-        if (!error && data) setGeneros(data);
+        if (!error && data) setGeneros(ordenarGenerosAlfabetico(data));
       } catch {
         // el selector de género simplemente queda vacío si esto falla
       }

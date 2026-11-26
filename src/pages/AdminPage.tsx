@@ -38,7 +38,6 @@ import type {
   ConfiguracionSuscripcionUpdate,
   EstadoSuscripcion,
   EstadoTrack,
-  Genero,
   GeneroInsert,
   HerramientaDJ,
   HerramientaDJInsert,
@@ -47,6 +46,7 @@ import type {
   Rol,
   TipoLicencia,
 } from "../lib/types";
+import { ordenarGenerosAlfabetico, type Genero } from "../lib/types";
 import Portada from "../components/Portada";
 
 // Top 50 ya no vive acá — ahora es su propia página (/top50), visible
@@ -615,7 +615,7 @@ function GenerosTab() {
     try {
       const { data, error } = await supabase.from("generos").select("*").order("orden");
       if (error) throw error;
-      setGeneros((data ?? []) as Genero[]);
+      setGeneros(ordenarGenerosAlfabetico((data ?? []) as Genero[]));
     } catch (e) {
       setError(mensajeErrorAmigable(e));
     } finally {
@@ -635,7 +635,7 @@ function GenerosTab() {
           error.code === "23505" ? `Ya existe un género llamado "${nombreNuevo.trim()}".` : error.message,
         );
       }
-      setGeneros((prev) => [...prev, data as Genero]);
+      setGeneros((prev) => ordenarGenerosAlfabetico([...prev, data as Genero]));
       setNombreNuevo("");
     } catch (e) {
       setError(mensajeErrorAmigable(e));

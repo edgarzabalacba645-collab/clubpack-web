@@ -19,7 +19,7 @@ import {
   formatearDuracion,
   mensajeErrorAmigable,
 } from "../lib/format";
-import type { Genero, PlaylistInsert, PlaylistTrackInsert } from "../lib/types";
+import { ordenarGenerosAlfabetico, type Genero, type PlaylistInsert, type PlaylistTrackInsert } from "../lib/types";
 import { useAuth, tieneAccesoActivo, esLicenciaDj, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
 import { useConfiguracionCatalogo } from "../lib/configCatalogo";
 import { usePlayer } from "../lib/player";
@@ -306,7 +306,7 @@ export default function CatalogoPage() {
           .select("*")
           .eq("activo", true)
           .order("orden");
-        if (!error && data) setGeneros(data);
+        if (!error && data) setGeneros(ordenarGenerosAlfabetico(data));
       } catch {
         // el filtro de género simplemente queda vacío si esto falla
       }
