@@ -463,6 +463,26 @@ export default function CatalogoPage() {
     });
   }
 
+  // Selecciona/deselecciona TODO lo que coincide con los filtros actuales
+  // (tracksOrdenados — las páginas son solo un recorte en pantalla de esa
+  // misma lista, ver más abajo), no solo lo que se ve en la página
+  // actual — así, filtrando por género (p. ej. Cachengue) y tocando este
+  // único botón, queda armada la selección completa aunque ocupe varias
+  // páginas, sin tener que tildar tema por tema ni repetir por página.
+  // Si ya estaban todos tildados, lo saca solo a eso (deja intacta
+  // cualquier otra selección hecha antes con un filtro distinto).
+  function toggleSeleccionarTodosFiltrados() {
+    setSeleccion((prev) => {
+      const next = new Set(prev);
+      if (todosFiltradosSeleccionados) {
+        tracksOrdenados.forEach((t) => next.delete(t.id));
+      } else {
+        tracksOrdenados.forEach((t) => next.add(t.id));
+      }
+      return next;
+    });
+  }
+
   // `filaEl`: el elemento de la fila/tarjeta que disparó esto — lo
   // llevamos a la vista si la barra fija del reproductor (que recién
   // aparece ahora) lo tapa parcialmente. `scroll-mb-*` en cada fila (ver
@@ -857,6 +877,9 @@ export default function CatalogoPage() {
         .sort((a, b) => a.g.nombre.localeCompare(b.g.nombre, "es", { sensitivity: "base" })),
     [generos, conteoGeneros],
   );
+
+  const todosFiltradosSeleccionados =
+    tracksOrdenados.length > 0 && tracksOrdenados.every((t) => seleccion.has(t.id));
 
   const totalPaginas = Math.max(1, Math.ceil(tracksOrdenados.length / PAGINA_TAMANO));
   // Por si la lista se achica (un filtro, un borrado) y la página en la
@@ -1357,6 +1380,21 @@ export default function CatalogoPage() {
       {/* Lista completa */}
       <div className="flex flex-col gap-3.5">
         {mostrarDescubrimiento && <h2 className="font-display font-bold text-lg m-0">Catálogo completo</h2>}
+        {tracksOrdenados.length > 0 && (
+          <label className="flex items-center gap-2 text-sm text-muted cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={todosFiltradosSeleccionados}
+              onChange={toggleSeleccionarTodosFiltrados}
+              aria-label={`Seleccionar los ${tracksOrdenados.length} temas de este filtro`}
+              className="w-4 h-4 accent-accent shrink-0"
+            />
+            <span>
+              Seleccionar todos los resultados ({tracksOrdenados.length})
+              {totalPaginas > 1 && <span className="text-muted-2"> — todas las páginas</span>}
+            </span>
+          </label>
+        )}
         {controlesPaginacion}
         <div className="bg-card rounded-2xl border border-border-soft overflow-hidden">
         {!cargando && tracks.length === 0 && (
