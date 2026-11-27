@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { descargarVariosDirecto, descargarPlaylistZip, ApiError } from "../lib/api";
+import { descargarVariosComoZip, descargarPlaylistZip, ApiError } from "../lib/api";
 import { formatearBpm, formatearFecha, mensajeErrorAmigable } from "../lib/format";
 import { ordenarGenerosAlfabetico, type Genero } from "../lib/types";
 import { useAuth, tieneAccesoActivo, esLicenciaDj, MENSAJE_SIN_ACCESO_ACTIVO } from "../lib/auth";
@@ -52,6 +52,7 @@ export default function PlaylistsPage() {
   const [aviso, setAviso] = useState<string | null>(null);
 
   const [descargandoId, setDescargandoId] = useState<string | null>(null);
+  const [progresoZip, setProgresoZip] = useState<{ hechos: number; total: number } | null>(null);
   const [reproduciendoId, setReproduciendoId] = useState<string | null>(null);
   const [confirmandoBorrarId, setConfirmandoBorrarId] = useState<string | null>(null);
   const [borrandoId, setBorrandoId] = useState<string | null>(null);
@@ -299,13 +300,25 @@ export default function PlaylistsPage() {
   async function handleDescargarZip(playlist: PlaylistFila) {
     setDescargandoId(playlist.id);
     setAviso(null);
+    setProgresoZip(null);
     try {
       const { archivos } = await descargarPlaylistZip(playlist.id);
-      await descargarVariosDirecto(archivos);
+      const nombreBase = playlist.nombre.trim().replace(/[\\/:*?"<>|]+/g, "-") || "playlist";
+      const { fallidos } = await descargarVariosComoZip(
+        archivos,
+        `${nombreBase}.zip`,
+        (hechos, total) => setProgresoZip({ hechos, total }),
+      );
+      if (fallidos.length > 0) {
+        setAviso(
+          `Se descargó el .zip, pero ${fallidos.length} tema(s) no se pudieron incluir: ${fallidos.join(", ")}`,
+        );
+      }
     } catch (e) {
       setAviso(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
     } finally {
       setDescargandoId(null);
+      setProgresoZip(null);
     }
   }
 
@@ -481,7 +494,11 @@ export default function PlaylistsPage() {
                     disabled={descargandoId === p.id || tracks.length === 0}
                     className="text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-50"
                   >
-                    {descargandoId === p.id ? "Descargando…" : "Descargar playlist completa"}
+                    {descargandoId === p.id
+                      ? progresoZip
+                        ? `Preparando… ${progresoZip.hechos}/${progresoZip.total}`
+                        : "Preparando…"
+                      : "Descargar playlist completa"}
                   </button>
                 )}
 

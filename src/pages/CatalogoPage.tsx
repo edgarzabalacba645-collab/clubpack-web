@@ -7,7 +7,7 @@ import {
   abrirDescargaDirecta,
   ApiError,
   borrarTrackAdmin,
-  descargarVariosDirecto,
+  descargarVariosComoZip,
   descargarZip,
   obtenerUrlDescarga,
   quitarPortada,
@@ -272,6 +272,7 @@ export default function CatalogoPage() {
   const [cargandoPreviewId, setCargandoPreviewId] = useState<string | null>(null);
   const [descargando, setDescargando] = useState<string | null>(null);
   const [procesandoZip, setProcesandoZip] = useState(false);
+  const [progresoZip, setProgresoZip] = useState<{ hechos: number; total: number } | null>(null);
   const [guardandoPlaylist, setGuardandoPlaylist] = useState(false);
   const [nombrePlaylist, setNombrePlaylist] = useState("");
   const [mostrarFormPlaylist, setMostrarFormPlaylist] = useState(false);
@@ -581,13 +582,23 @@ export default function CatalogoPage() {
     }
     setProcesandoZip(true);
     setAvisoAccion(null);
+    setProgresoZip(null);
     try {
       const { archivos } = await descargarZip([...seleccion]);
-      await descargarVariosDirecto(archivos);
+      const nombreZip = `playlist-seleccion-${new Date().toISOString().slice(0, 10)}.zip`;
+      const { fallidos } = await descargarVariosComoZip(archivos, nombreZip, (hechos, total) =>
+        setProgresoZip({ hechos, total }),
+      );
+      if (fallidos.length > 0) {
+        setAvisoAccion(
+          `Se descargó el .zip, pero ${fallidos.length} tema(s) no se pudieron incluir: ${fallidos.join(", ")}`,
+        );
+      }
     } catch (e) {
       setAvisoAccion(e instanceof ApiError ? e.message : "No se pudo descargar la selección.");
     } finally {
       setProcesandoZip(false);
+      setProgresoZip(null);
     }
   }
 
@@ -1640,7 +1651,7 @@ export default function CatalogoPage() {
               className="text-sm font-semibold bg-accent text-white px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60 whitespace-nowrap"
             >
               {procesandoZip ? (
-                "Descargando…"
+                progresoZip ? `Preparando… ${progresoZip.hechos}/${progresoZip.total}` : "Preparando…"
               ) : (
                 <>
                   <span className="sm:hidden">Descargar</span>

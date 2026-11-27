@@ -1,3 +1,4 @@
+import { zipSync, type Zippable } from "fflate";
 import { supabase, API_BASE_URL } from "./supabase";
 
 export class ApiError extends Error {
@@ -198,7 +199,7 @@ interface DescargaMultipleResponse {
 // El nombre quedó de cuando esto armaba un .zip de verdad — ver el
 // comentario de descargar_zip en el backend. Ahora devuelve una URL
 // firmada por track (cero bytes de audio pasan por nuestro servidor);
-// usar junto con descargarVariosDirecto, más abajo.
+// usar junto con descargarVariosComoZip, más abajo.
 export function descargarZip(trackIds: string[]) {
   return apiFetchJson<DescargaMultipleResponse>("/tracks/zip", {
     method: "POST",
@@ -437,14 +438,98 @@ function descargarUrlConNombre(url: string, nombreArchivo: string) {
   a.remove();
 }
 
-export async function descargarVariosDirecto(archivos: ArchivoDescarga[]) {
-  // Para una selección o una playlist: dispara cada descarga directo de
-  // R2 (cero bytes de audio por nuestro servidor), con una pequeña pausa
-  // entre una y otra. Todas juntas en el mismo instante pueden hacer que
-  // el navegador las trate como descargas automáticas y pida permiso
-  // para seguir — normal, y solo pasa una vez por sitio.
-  for (const archivo of archivos) {
-    descargarUrlConNombre(archivo.url, archivo.nombre);
-    await new Promise((resolver) => setTimeout(resolver, 350));
+export interface ResultadoDescargaZip {
+  fallidos: string[]; // nombres de los temas que no se pudieron incluir (link vencido, red, etc.)
+}
+
+/**
+ * Para una selección o una playlist completa: arma UN solo .zip en el
+ * propio navegador (fetch de cada URL firmada de R2 + fflate) y dispara
+ * una única descarga al final.
+ *
+ * Antes se disparaba una descarga del navegador por archivo
+ * (descargarUrlConNombre en loop) — con una selección grande el
+ * navegador las trata como "descargas automáticas": a partir de la
+ * 2da/3ra pide permiso para seguir, y aun permitiéndolo varias se
+ * pierden en silencio (bien notorio en Chrome de Android) — por eso no
+ * bajaba todo lo seleccionado, sin ningún aviso de qué había quedado
+ * afuera. Armando todo en un solo .zip no hay nada que el navegador
+ * pueda bloquear a mitad de camino: una sola descarga, un solo archivo.
+ * Sigue siendo cero bytes de audio por nuestro servidor (Render) — cada
+ * fetch va directo a R2, el zip se arma en la memoria del navegador.
+ *
+ * Los fetch van en paralelo (con un tope de concurrencia) y no uno por
+ * uno: las URLs firmadas de R2 vencen a los 5 minutos, y una selección
+ * grande bajada en serie (un archivo entero tras otro) puede no
+ * alcanzar a terminar antes de que las últimas ya hayan vencido. En
+ * paralelo además es varias veces más rápido para el usuario. Esto no
+ * reabre el problema de las "descargas automáticas" del navegador: acá
+ * no se dispara ninguna descarga por archivo, son fetch() a memoria.
+ *
+ * onProgreso: para mostrar "Preparando… 12/34" mientras arma el zip. El
+ * resultado devuelve los nombres de los temas que no se pudieron
+ * incluir, para avisar cuáles en vez de dejar a alguien buscando a
+ * ciegas qué falta en una selección grande.
+ */
+export async function descargarVariosComoZip(
+  archivos: ArchivoDescarga[],
+  nombreZip: string,
+  onProgreso?: (hechos: number, total: number) => void,
+): Promise<ResultadoDescargaZip> {
+  const CONCURRENCIA = 6;
+  const entradas: Zippable = {};
+  const fallidos: string[] = [];
+  const nombresUsados = new Set<string>();
+  let hechos = 0;
+
+  async function procesar(i: number) {
+    const archivo = archivos[i];
+    try {
+      const resp = await fetch(archivo.url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const bytes = new Uint8Array(await resp.arrayBuffer());
+
+      // Si dos temas comparten nombre de archivo (puede pasar: mismo
+      // título/remixer), que no se pisen uno a otro dentro del zip.
+      let nombre = archivo.nombre;
+      if (nombresUsados.has(nombre)) {
+        const punto = nombre.lastIndexOf(".");
+        const base = punto === -1 ? nombre : nombre.slice(0, punto);
+        const ext = punto === -1 ? "" : nombre.slice(punto);
+        nombre = `${base} (${i + 1})${ext}`;
+      }
+      nombresUsados.add(nombre);
+      // level: 0 — sin comprimir. El MP3 ya viene comprimido, intentar
+      // recomprimirlo con zlib no ahorra casi nada y solo suma tiempo.
+      entradas[nombre] = [bytes, { level: 0 }];
+    } catch {
+      fallidos.push(archivo.nombre);
+    }
+    hechos++;
+    onProgreso?.(hechos, archivos.length);
   }
+
+  // Pool de workers con tope de concurrencia: cada uno toma el próximo
+  // índice libre hasta que no queden.
+  let siguiente = 0;
+  async function worker() {
+    while (siguiente < archivos.length) {
+      const i = siguiente++;
+      await procesar(i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCIA, archivos.length) }, worker));
+
+  if (Object.keys(entradas).length === 0) {
+    throw new Error("No se pudo bajar ninguno de los temas seleccionados.");
+  }
+
+  const zip = zipSync(entradas);
+  const blobUrl = URL.createObjectURL(new Blob([zip], { type: "application/zip" }));
+  descargarUrlConNombre(blobUrl, nombreZip);
+  // Demora antes de revocar: algunos navegadores necesitan un instante
+  // para empezar a leer el blob antes de que la URL se invalide.
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+
+  return { fallidos };
 }
