@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import {
@@ -1549,6 +1549,40 @@ function VolumenPendientesPanel() {
   // por el total pendiente en orden.
   const [busqueda, setBusqueda] = useState("");
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
+  // Wake Lock: mientras está procesando, evita que el celular/compu
+  // bloquee la pantalla solo por inactividad (nadie está tocando nada,
+  // solo mirando el progreso) — eso fue justo lo que cortó una tanda a
+  // los 8 temas: al bloquearse la pantalla, Android termina suspendiendo
+  // la pestaña y el loop de acá se frena sin ningún error que mostrar.
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  async function pedirWakeLock() {
+    try {
+      if ("wakeLock" in navigator) {
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+      }
+    } catch {
+      // No soportado en este navegador, o la pestaña no está visible en
+      // este momento — no es motivo para frenar el backfill en sí, es
+      // solo una comodidad extra.
+    }
+  }
+
+  function soltarWakeLock() {
+    wakeLockRef.current?.release().catch(() => {});
+    wakeLockRef.current = null;
+  }
+
+  useEffect(() => {
+    // El wake lock se suelta solo apenas la pestaña deja de estar
+    // visible (por diseño del navegador) — si se vuelve a ver mientras
+    // el backfill sigue corriendo, hay que pedirlo de nuevo.
+    function alCambiarVisibilidad() {
+      if (document.visibilityState === "visible" && procesando) pedirWakeLock();
+    }
+    document.addEventListener("visibilitychange", alCambiarVisibilidad);
+    return () => document.removeEventListener("visibilitychange", alCambiarVisibilidad);
+  }, [procesando]);
 
   useEffect(() => {
     cargar();
@@ -1607,6 +1641,7 @@ function VolumenPendientesPanel() {
     setError(null);
     setFallidos([]);
     setUltimoErrorDetalle(null);
+    await pedirWakeLock();
     try {
       const fallidosAhora: TrackPendienteVolumen[] = [];
       let fallosSeguidos = 0;
@@ -1651,6 +1686,7 @@ function VolumenPendientesPanel() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
     } finally {
+      soltarWakeLock();
       setProcesando(false);
       await cargar();
     }
@@ -1671,7 +1707,9 @@ function VolumenPendientesPanel() {
           volumen que traía el archivo original. Cada uno se baja, se reencoda a MP3 320 ya nivelado
           y se vuelve a subir — tarda bastante más por tema que los otros backfills, así que con un
           catálogo grande conviene elegir tandas en vez de procesar todo de una. Los temas nuevos ya
-          se nivelan solos al subirlos.
+          se nivelan solos al subirlos. Mientras está nivelando, trata de evitar que la pantalla se
+          bloquee sola por inactividad (si el navegador lo permite) — igual conviene no cambiar de
+          app ni apagar la pantalla a mano mientras corre.
         </p>
       </div>
 
