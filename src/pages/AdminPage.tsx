@@ -1541,6 +1541,14 @@ function VolumenPendientesPanel() {
   const [progreso, setProgreso] = useState<{ hechos: number; total: number } | null>(null);
   const [fallidos, setFallidos] = useState<TrackPendienteVolumen[]>([]);
   const [ultimoErrorDetalle, setUltimoErrorDetalle] = useState<string | null>(null);
+  // Con catálogos grandes (cientos de temas pendientes), tirar el botón
+  // "procesar todo" de una podía tardar horas en el plan gratis de
+  // Render — y si se cortaba a mitad de camino, no había forma de elegir
+  // por dónde retomar. Ahora se elige a mano qué tandas procesar (por
+  // ejemplo, buscando por título y tildando esos) en vez de ir siempre
+  // por el total pendiente en orden.
+  const [busqueda, setBusqueda] = useState("");
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     cargar();
@@ -1552,6 +1560,10 @@ function VolumenPendientesPanel() {
     try {
       const { tracks } = await listarPendientesVolumen();
       setPendientes(tracks);
+      // Saca de la selección cualquier id que ya no esté pendiente (se
+      // niveló en esta misma tanda, o en otra pestaña/sesión).
+      const idsVigentes = new Set(tracks.map((t) => t.id));
+      setSeleccion((prev) => new Set([...prev].filter((id) => idsVigentes.has(id))));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
     } finally {
@@ -1559,23 +1571,49 @@ function VolumenPendientesPanel() {
     }
   }
 
+  const filtrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return pendientes;
+    return pendientes.filter((t) => t.titulo.toLowerCase().includes(q));
+  }, [pendientes, busqueda]);
+
+  const todosFiltradosSeleccionados = filtrados.length > 0 && filtrados.every((t) => seleccion.has(t.id));
+
+  function toggleUno(id: string) {
+    setSeleccion((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleTodosFiltrados() {
+    setSeleccion((prev) => {
+      const next = new Set(prev);
+      if (todosFiltradosSeleccionados) {
+        filtrados.forEach((t) => next.delete(t.id));
+      } else {
+        filtrados.forEach((t) => next.add(t.id));
+      }
+      return next;
+    });
+  }
+
   async function handleNivelar() {
+    const aProcesar = pendientes.filter((t) => seleccion.has(t.id));
+    if (aProcesar.length === 0) return;
     setProcesando(true);
     setError(null);
     setFallidos([]);
     setUltimoErrorDetalle(null);
     try {
-      // Mismo motivo que en los otros paneles de backfill: pide la lista
-      // de pendientes DE NUEVO acá, así si esto se corta a mitad de
-      // camino y se vuelve a apretar el botón, retoma de los que faltan
-      // nada más (nunca reprocesa uno que ya quedó nivelado).
-      const { tracks: actuales } = await listarPendientesVolumen();
       const fallidosAhora: TrackPendienteVolumen[] = [];
       let fallosSeguidos = 0;
       let hechos = 0;
-      const total = actuales.length;
+      const total = aProcesar.length;
       for (hechos = 0; hechos < total; hechos++) {
-        const track = actuales[hechos];
+        const track = aProcesar[hechos];
         setProgreso({ hechos, total });
         // Acá cada tema de por sí tarda más que en peaks/portada (baja
         // de R2, reencodea el audio entero, vuelve a subir) — la pausa
@@ -1584,6 +1622,13 @@ function VolumenPendientesPanel() {
         if (hechos > 0) await new Promise((r) => setTimeout(r, 500));
         try {
           await nivelarVolumenTrack(track.id);
+          // Lo saca de la selección apenas termina — si esto se corta a
+          // mitad de camino, lo que queda tildado es justo lo que falta.
+          setSeleccion((prev) => {
+            const next = new Set(prev);
+            next.delete(track.id);
+            return next;
+          });
           fallosSeguidos = 0;
         } catch (e) {
           fallidosAhora.push(track);
@@ -1594,7 +1639,7 @@ function VolumenPendientesPanel() {
           if (fallosSeguidos >= 5) {
             setError(
               "Se cortó después de 5 fallos seguidos (puede que el servidor esté reiniciándose) — " +
-                "esperá un poco y volvé a apretar el botón, retoma de donde quedó.",
+                "esperá un poco y volvé a apretar el botón, retoma de los que quedaron tildados.",
             );
             hechos++;
             break;
@@ -1623,9 +1668,10 @@ function VolumenPendientesPanel() {
         <p className="font-semibold text-sm m-0">Nivelado de volumen (−14 LUFS)</p>
         <p className="text-sm text-muted m-0">
           Temas subidos antes de que existiera el nivelado automático de volumen — quedaron con el
-          volumen que traía el archivo original. Esto los baja, los reencodea a MP3 320 ya nivelados
-          y los vuelve a subir (tarda más por tema que los otros backfills). Los temas nuevos ya se
-          nivelan solos al subirlos.
+          volumen que traía el archivo original. Cada uno se baja, se reencoda a MP3 320 ya nivelado
+          y se vuelve a subir — tarda bastante más por tema que los otros backfills, así que con un
+          catálogo grande conviene elegir tandas en vez de procesar todo de una. Los temas nuevos ya
+          se nivelan solos al subirlos.
         </p>
       </div>
 
@@ -1635,16 +1681,62 @@ function VolumenPendientesPanel() {
       )}
 
       {pendientes.length > 0 && (
-        <button
-          type="button"
-          onClick={handleNivelar}
-          disabled={procesando}
-          className="self-start text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
-        >
-          {procesando
-            ? `Nivelando… ${progreso?.hechos ?? 0}/${progreso?.total ?? pendientes.length}`
-            : `🔊 Nivelar volumen pendiente (${pendientes.length})`}
-        </button>
+        <>
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por título para elegir una tanda…"
+            disabled={procesando}
+            className="px-3 py-2 rounded-lg border border-border text-sm bg-cream-soft disabled:opacity-60"
+          />
+
+          <label className="flex items-center gap-2 text-sm text-muted cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={todosFiltradosSeleccionados}
+              onChange={toggleTodosFiltrados}
+              disabled={procesando}
+              className="w-4 h-4 accent-accent shrink-0"
+            />
+            <span>
+              Seleccionar los {filtrados.length} que se ven
+              {busqueda && <span className="text-muted-2"> (filtrados por "{busqueda}")</span>}
+            </span>
+          </label>
+
+          <div className="max-h-64 overflow-y-auto flex flex-col border border-border-soft rounded-xl divide-y divide-border-soft">
+            {filtrados.map((track) => (
+              <label
+                key={track.id}
+                className="flex items-center gap-2 text-sm px-3 py-2 cursor-pointer select-none hover:bg-cream-soft"
+              >
+                <input
+                  type="checkbox"
+                  checked={seleccion.has(track.id)}
+                  onChange={() => toggleUno(track.id)}
+                  disabled={procesando}
+                  className="w-4 h-4 accent-accent shrink-0"
+                />
+                <span className="truncate">{track.titulo}</span>
+              </label>
+            ))}
+            {filtrados.length === 0 && (
+              <p className="text-sm text-muted m-0 px-3 py-2">No hay pendientes que matcheen esa búsqueda.</p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleNivelar}
+            disabled={procesando || seleccion.size === 0}
+            className="self-start text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
+          >
+            {procesando
+              ? `Nivelando… ${progreso?.hechos ?? 0}/${progreso?.total ?? seleccion.size}`
+              : `🔊 Nivelar seleccionados (${seleccion.size})`}
+          </button>
+        </>
       )}
 
       {!procesando && progreso && (
