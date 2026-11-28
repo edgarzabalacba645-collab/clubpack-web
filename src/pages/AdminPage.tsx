@@ -10,7 +10,9 @@ import {
   listarDuplicadosPendientes,
   listarPendientesPeaks,
   listarPendientesPortadaGenerica,
+  listarPendientesVolumen,
   marcarDuplicado,
+  nivelarVolumenTrack,
   obtenerBalanceCloudflare,
   obtenerBalanceRender,
   subirImagenHerramienta,
@@ -20,6 +22,7 @@ import {
   type ItemUso,
   type TrackPendientePeaks,
   type TrackPendientePortada,
+  type TrackPendienteVolumen,
 } from "../lib/api";
 import {
   formatearBpm,
@@ -1142,6 +1145,7 @@ function CatalogoCompletoTab() {
       <ControlSubidasPanel />
       <PeaksPendientesPanel />
       <PortadaPendientesPanel />
+      <VolumenPendientesPanel />
 
       <div className="flex items-center gap-2">
         <label className="text-xs font-semibold text-body">Subido por</label>
@@ -1522,6 +1526,130 @@ function PortadaPendientesPanel() {
       {!procesando && progreso && (
         <p className="text-sm text-muted m-0">
           Listo: {progreso.hechos - fallidos.length} de {progreso.total} grabados.
+          {fallidos.length > 0 && ` ${fallidos.length} fallaron (${fallidos.map((f) => f.titulo).join(", ")}).`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function VolumenPendientesPanel() {
+  const [pendientes, setPendientes] = useState<TrackPendienteVolumen[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [procesando, setProcesando] = useState(false);
+  const [progreso, setProgreso] = useState<{ hechos: number; total: number } | null>(null);
+  const [fallidos, setFallidos] = useState<TrackPendienteVolumen[]>([]);
+  const [ultimoErrorDetalle, setUltimoErrorDetalle] = useState<string | null>(null);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    setError(null);
+    try {
+      const { tracks } = await listarPendientesVolumen();
+      setPendientes(tracks);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  async function handleNivelar() {
+    setProcesando(true);
+    setError(null);
+    setFallidos([]);
+    setUltimoErrorDetalle(null);
+    try {
+      // Mismo motivo que en los otros paneles de backfill: pide la lista
+      // de pendientes DE NUEVO acá, así si esto se corta a mitad de
+      // camino y se vuelve a apretar el botón, retoma de los que faltan
+      // nada más (nunca reprocesa uno que ya quedó nivelado).
+      const { tracks: actuales } = await listarPendientesVolumen();
+      const fallidosAhora: TrackPendienteVolumen[] = [];
+      let fallosSeguidos = 0;
+      let hechos = 0;
+      const total = actuales.length;
+      for (hechos = 0; hechos < total; hechos++) {
+        const track = actuales[hechos];
+        setProgreso({ hechos, total });
+        // Acá cada tema de por sí tarda más que en peaks/portada (baja
+        // de R2, reencodea el audio entero, vuelve a subir) — la pausa
+        // es la misma igual, le da margen a Render entre una corrida de
+        // ffmpeg y la siguiente en el plan gratis.
+        if (hechos > 0) await new Promise((r) => setTimeout(r, 500));
+        try {
+          await nivelarVolumenTrack(track.id);
+          fallosSeguidos = 0;
+        } catch (e) {
+          fallidosAhora.push(track);
+          fallosSeguidos++;
+          const detalle = e instanceof ApiError ? e.message : String(e);
+          setUltimoErrorDetalle(`"${track.titulo}": ${detalle}`);
+          console.error(`No se pudo nivelar el volumen de "${track.titulo}" (${track.id}):`, e);
+          if (fallosSeguidos >= 5) {
+            setError(
+              "Se cortó después de 5 fallos seguidos (puede que el servidor esté reiniciándose) — " +
+                "esperá un poco y volvé a apretar el botón, retoma de donde quedó.",
+            );
+            hechos++;
+            break;
+          }
+        }
+      }
+      setProgreso({ hechos, total });
+      setFallidos(fallidosAhora);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : mensajeErrorAmigable(e));
+    } finally {
+      setProcesando(false);
+      await cargar();
+    }
+  }
+
+  if (cargando) return <p className="text-sm text-muted m-0">Revisando temas pendientes de nivelado de volumen…</p>;
+
+  // Ya está todo al día: no vale la pena ocupar lugar en pantalla con un
+  // panel vacío para esto el resto del tiempo.
+  if (!cargando && pendientes.length === 0 && !progreso) return null;
+
+  return (
+    <div className="bg-card rounded-2xl border border-border-soft p-5 flex flex-col gap-3">
+      <div>
+        <p className="font-semibold text-sm m-0">Nivelado de volumen (−14 LUFS)</p>
+        <p className="text-sm text-muted m-0">
+          Temas subidos antes de que existiera el nivelado automático de volumen — quedaron con el
+          volumen que traía el archivo original. Esto los baja, los reencodea a MP3 320 ya nivelados
+          y los vuelve a subir (tarda más por tema que los otros backfills). Los temas nuevos ya se
+          nivelan solos al subirlos.
+        </p>
+      </div>
+
+      {error && <p className="text-sm text-accent font-medium m-0">{error}</p>}
+      {ultimoErrorDetalle && (
+        <p className="text-xs text-muted font-mono m-0 break-words">Último fallo: {ultimoErrorDetalle}</p>
+      )}
+
+      {pendientes.length > 0 && (
+        <button
+          type="button"
+          onClick={handleNivelar}
+          disabled={procesando}
+          className="self-start text-sm font-semibold bg-ink text-cream px-4 py-2 rounded-full appearance-none border-none cursor-pointer disabled:opacity-60"
+        >
+          {procesando
+            ? `Nivelando… ${progreso?.hechos ?? 0}/${progreso?.total ?? pendientes.length}`
+            : `🔊 Nivelar volumen pendiente (${pendientes.length})`}
+        </button>
+      )}
+
+      {!procesando && progreso && (
+        <p className="text-sm text-muted m-0">
+          Listo: {progreso.hechos - fallidos.length} de {progreso.total} nivelados.
           {fallidos.length > 0 && ` ${fallidos.length} fallaron (${fallidos.map((f) => f.titulo).join(", ")}).`}
         </p>
       )}

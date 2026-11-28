@@ -330,6 +330,27 @@ export function fijarPortadaGenericaTrack(trackId: string) {
   return apiFetchJson(`/tracks/${trackId}/fijar-portada-generica`, { method: "POST" });
 }
 
+// ---- Admin: backfill del nivelado de volumen (ver audio.py::
+// transcodificar_a_mp3_320 / sql/023_nivelado_volumen.sql) para temas
+// subidos antes de que existiera. Los temas nuevos ya se nivelan solos
+// en /tracks/confirm — esto es solo para vaciar la lista de pendientes
+// una vez. A diferencia de los backfills de arriba, acá sí se reencodea
+// el audio entero (una segunda pasada de MP3 320 a MP3 320 — pérdida
+// muy menor, normalmente inaudible), por eso tarda más por tema. ----
+
+export interface TrackPendienteVolumen {
+  id: string;
+  titulo: string;
+}
+
+export function listarPendientesVolumen() {
+  return apiFetchJson<{ tracks: TrackPendienteVolumen[] }>("/tracks/admin/pendientes-volumen");
+}
+
+export function nivelarVolumenTrack(trackId: string) {
+  return apiFetchJson(`/tracks/${trackId}/nivelar-volumen`, { method: "POST" });
+}
+
 // ---- Imágenes: portadas de track + herramientas DJ (R2, por eso pasan por la API) ----
 
 const cacheUrlImagen = new Map<string, { url: string; expira: number }>();
